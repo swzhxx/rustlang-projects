@@ -30,8 +30,10 @@ fn main() {
                 let mut buff = vec![0; MSG_SIZE];
                 match socket.read_exact(&mut buff) {
                     Ok(_) => {
-                        let msg = buff.into_iter().take_while(|&x| &x != 0).collect();
+                        let msg = buff.into_iter().take_while(|&x| x != 0).collect();
                         let msg = String::from_utf8(msg).expect("Invalid utf8 message");
+                        println!("{}:{:?}", addr, msg);
+                        tx.send(msg).expect("failed to send msg to rx")
                     }
                     Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                     Err(_) => {
