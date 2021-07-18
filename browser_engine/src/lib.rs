@@ -1,3 +1,4 @@
+mod css;
 mod dom;
 mod html_parser;
 #[cfg(test)]
