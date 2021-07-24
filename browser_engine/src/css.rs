@@ -192,6 +192,16 @@ impl fmt::Debug for SimpleSelector {
     }
 }
 
+impl Default for SimpleSelector {
+    fn default() -> Self {
+        SimpleSelector {
+            tag_name: None,
+            id: None,
+            classes: Vec::new(),
+        }
+    }
+}
+
 impl Declaration {
     pub fn new(property: String, value: Value) -> Declaration {
         Declaration { property, value }
