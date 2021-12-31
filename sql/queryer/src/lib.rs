@@ -1,6 +1,7 @@
 mod convert;
 mod dialect;
 
+pub use dialect::TyrDialect;
 #[cfg(test)]
 mod tests {
     #[test]

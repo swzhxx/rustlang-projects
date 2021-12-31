@@ -1,5 +1,3 @@
-use std::any;
-
 use anyhow::{anyhow, Result};
 use polars::prelude::*;
 use sqlparser::ast::{
@@ -7,7 +5,7 @@ use sqlparser::ast::{
     SelectItem, SetExpr, Statement, TableFactor, TableWithJoins, Value as SqlValue,
 };
 
-/// 解析出来的SQL
+/// 解析出来的 SQL
 pub struct Sql<'a> {
     pub(crate) selection: Vec<Expr>,
     pub(crate) condition: Option<Expr>,
@@ -26,13 +24,16 @@ pub struct Projection<'a>(pub(crate) &'a SelectItem);
 pub struct Source<'a>(pub(crate) &'a [TableWithJoins]);
 pub struct Order<'a>(pub(crate) &'a OrderByExpr);
 pub struct Offset<'a>(pub(crate) &'a SqlOffset);
-pub struct Limit<'a>(pub(crate) &'a SqlOffset);
+pub struct Limit<'a>(pub(crate) &'a SqlExpr);
 pub struct Value(pub(crate) SqlValue);
 
+/// 把 SqlParser 解析出来的 Statement 转换成我们需要的结构
 impl<'a> TryFrom<&'a Statement> for Sql<'a> {
     type Error = anyhow::Error;
+
     fn try_from(sql: &'a Statement) -> Result<Self, Self::Error> {
         match sql {
+            // 目前我们只关心 query (select ... from ... where ...)
             Statement::Query(q) => {
                 let offset = q.offset.as_ref();
                 let limit = q.limit.as_ref();
@@ -41,6 +42,7 @@ impl<'a> TryFrom<&'a Statement> for Sql<'a> {
                     from: table_with_joins,
                     selection: where_clause,
                     projection,
+
                     group_by: _,
                     ..
                 } = match &q.body {
@@ -49,21 +51,26 @@ impl<'a> TryFrom<&'a Statement> for Sql<'a> {
                 };
 
                 let source = Source(table_with_joins).try_into()?;
+
                 let condition = match where_clause {
                     Some(expr) => Some(Expression(Box::new(expr.to_owned())).try_into()?),
                     None => None,
                 };
+
                 let mut selection = Vec::with_capacity(8);
                 for p in projection {
                     let expr = Projection(p).try_into()?;
                     selection.push(expr);
                 }
+
                 let mut order_by = Vec::new();
                 for expr in orders {
                     order_by.push(Order(expr).try_into()?);
                 }
+
                 let offset = offset.map(|v| Offset(v).into());
                 let limit = limit.map(|v| Limit(v).into());
+
                 Ok(Sql {
                     selection,
                     condition,
@@ -81,6 +88,7 @@ impl<'a> TryFrom<&'a Statement> for Sql<'a> {
 /// 把 SqlParser 的 Expr 转换成 DataFrame 的 Expr
 impl TryFrom<Expression> for Expr {
     type Error = anyhow::Error;
+
     fn try_from(expr: Expression) -> Result<Self, Self::Error> {
         match *expr.0 {
             SqlExpr::BinaryOp { left, op, right } => Ok(Expr::BinaryExpr {
@@ -90,17 +98,18 @@ impl TryFrom<Expression> for Expr {
             }),
             SqlExpr::Wildcard => Ok(Self::Wildcard),
             SqlExpr::IsNull(expr) => Ok(Self::IsNull(Box::new(Expression(expr).try_into()?))),
+            SqlExpr::IsNotNull(expr) => Ok(Self::IsNotNull(Box::new(Expression(expr).try_into()?))),
             SqlExpr::Identifier(id) => Ok(Self::Column(Arc::new(id.value))),
             SqlExpr::Value(v) => Ok(Self::Literal(Value(v).try_into()?)),
             v => Err(anyhow!("expr {:#?} is not supported", v)),
-        };
-        todo!()
+        }
     }
 }
 
-/// 把SqlParser的Expr转成DataFrame的Expr
+/// 把 SqlParser 的 BinaryOperator 转换成 DataFrame 的 Operator
 impl TryFrom<Operation> for Operator {
     type Error = anyhow::Error;
+
     fn try_from(op: Operation) -> Result<Self, Self::Error> {
         match op.0 {
             SqlBinaryOperator::Plus => Ok(Self::Plus),
@@ -124,6 +133,7 @@ impl TryFrom<Operation> for Operator {
 /// 把 SqlParser 的 SelectItem 转换成 DataFrame 的 Expr
 impl<'a> TryFrom<Projection<'a>> for Expr {
     type Error = anyhow::Error;
+
     fn try_from(p: Projection<'a>) -> Result<Self, Self::Error> {
         match p.0 {
             SelectItem::UnnamedExpr(SqlExpr::Identifier(id)) => Ok(col(&id.to_string())),
@@ -164,6 +174,7 @@ impl<'a> TryFrom<Source<'a>> for &'a str {
 /// 把 SqlParser 的 order by expr 转换成 (列名, 排序方法)
 impl<'a> TryFrom<Order<'a>> for (String, bool) {
     type Error = anyhow::Error;
+
     fn try_from(o: Order) -> Result<Self, Self::Error> {
         let name = match &o.0.expr {
             SqlExpr::Identifier(id) => id.to_string(),
@@ -174,6 +185,7 @@ impl<'a> TryFrom<Order<'a>> for (String, bool) {
                 ))
             }
         };
+
         Ok((name, !o.0.asc.unwrap_or(true)))
     }
 }
@@ -190,6 +202,7 @@ impl<'a> From<Offset<'a>> for i64 {
         }
     }
 }
+
 /// 把 SqlParser 的 Limit expr 转换成 usize
 impl<'a> From<Limit<'a>> for usize {
     fn from(l: Limit<'a>) -> Self {
@@ -199,6 +212,7 @@ impl<'a> From<Limit<'a>> for usize {
         }
     }
 }
+
 /// 把 SqlParser 的 value 转换成 DataFrame 支持的 LiteralValue
 impl TryFrom<Value> for LiteralValue {
     type Error = anyhow::Error;
@@ -209,5 +223,28 @@ impl TryFrom<Value> for LiteralValue {
             SqlValue::Null => Ok(LiteralValue::Null),
             v => Err(anyhow!("Value {} is not supported", v)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TyrDialect;
+    use sqlparser::parser::Parser;
+
+    #[test]
+    fn parse_sql_works() {
+        let url = "http://abc.xyz/abc?a=1&b=2";
+        let sql = format!(
+            "select a, b, c from {} where a=1 order by c desc limit 5 offset 10",
+            url
+        );
+        let statement = &Parser::parse_sql(&TyrDialect::default(), sql.as_ref()).unwrap()[0];
+        let sql: Sql = statement.try_into().unwrap();
+        assert_eq!(sql.source, url);
+        assert_eq!(sql.limit, Some(5));
+        assert_eq!(sql.offset, Some(10));
+        assert_eq!(sql.order_by, vec![("c".into(), true)]);
+        assert_eq!(sql.selection, vec![col("a"), col("b"), col("c")]);
     }
 }
