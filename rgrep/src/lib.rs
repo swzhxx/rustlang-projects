@@ -98,7 +98,7 @@ pub fn format_line(line: &str, lineno: usize, range: Range<usize>) -> String {
         (prefix.chars().count() + 1).to_string().cyan(),
         prefix,
         &line[start..end].red(),
-        &line[end..]rgrep
+        &line[end..]
     )
 }
 
