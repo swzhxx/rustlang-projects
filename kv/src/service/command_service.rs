@@ -1,5 +1,36 @@
 use crate::*;
 
+impl CommandService for Hget {
+    fn execute(self, store: &impl Storage) -> CommandResponse {
+        match store.get(&self.table, &self.key) {
+            Ok(Some(v)) => v.into(),
+            Ok(None) => KvError::NotFound(self.table, self.key).into(),
+            Err(e) => e.into(),
+        }
+    }
+}
+
+impl CommandService for Hgetall {
+    fn execute(self, store: &impl Storage) -> CommandResponse {
+        match store.get_all(&self.table) {
+            Ok(v) => v.into(),
+            Err(e) => e.into(),
+        }
+    }
+}
+
+impl CommandService for Hset {
+    fn execute(self, store: &impl Storage) -> CommandResponse {
+        match self.pair {
+            Some(v) => match store.set(&self.table, v.key, v.value.unwrap_or_default()) {
+                Ok(Some(v)) => v.into(),
+                Ok(None) => Value::default().into(),
+                Err(e) => e.into(),
+            },
+            None => KvError::InvalidCommand(format!("{:?}", self)).into(),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -22,8 +53,8 @@ mod tests {
     fn dispatch(cmd: CommandRequest, store: &impl Storage) -> CommandResponse {
         match cmd.request_data.unwrap() {
             RequestData::Hget(v) => v.execute(store),
-            RequestData::Hgetall(_) => v.execute(store),
-            RequestData::Hset(_) => v.execute(store),
+            RequestData::Hgetall(v) => v.execute(store),
+            RequestData::Hset(v) => v.execute(store),
             _ => todo!(),
         }
     }
@@ -38,7 +69,7 @@ mod tests {
 
     fn assert_res_error(res: CommandResponse, code: u32, msg: &str) {
         assert_eq!(res.status, code);
-        assert_eq!(res.message.contains(msg));
+        assert!(res.message.contains(msg));
         assert_eq!(res.values, &[]);
         assert_eq!(res.pairs, &[]);
     }
