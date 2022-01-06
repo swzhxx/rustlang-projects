@@ -79,3 +79,37 @@ where
         CommandResponse::decode_frame(&mut buf)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{assert_res_ok, MemTable, ServiceInner, Value};
+    use anyhow::Result;
+    use bytes::Bytes;
+    use std::net::SocketAddr;
+    use tokio::net::{TcpListener, TcpStream};
+
+    #[tokio::test]
+    async fn client_server_basic_communication_should_work() -> Result<()> {
+        todo!()
+    }
+
+    #[tokio::test]
+    async fn client_server_compression_should_work() -> Result<()> {
+        todo!()
+    }
+
+    async fn start_server() -> Result<SocketAddr> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        tokio::spawn(async move {
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+                let service: Service = ServiceInner::new(MemTable::new()).into();
+                let server = ProstServerStream::new(stream, service);
+                tokio::spawn(async move { server.process().await });
+            }
+        });
+        Ok(addr)
+    }
+}
