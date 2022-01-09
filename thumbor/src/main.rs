@@ -20,6 +20,7 @@ use tower::ServiceBuilder;
 use tracing::{info, instrument};
 mod pb;
 use pb::*;
+mod engine;
 
 #[derive(Deserialize)]
 struct Params {
