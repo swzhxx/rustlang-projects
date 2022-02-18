@@ -1,6 +1,6 @@
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Element {
-    name: String,
-    attribute: Vec<(String, String)>,
-    children: Vec<Element>,
+    pub name: String,
+    pub attributes: Vec<(String, String)>,
+    pub children: Vec<Element>,
 }
