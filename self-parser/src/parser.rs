@@ -238,6 +238,42 @@ impl<'a, Output> Parser<'a, Output> for BoxedParser<'a, Output> {
         self.parser.parse(input)
     }
 }
+
+fn open_element<'a>() -> impl Parser<'a, Element> {
+    left(element_start(), match_literal(">")).map(|(name, attributes)| Element {
+        name,
+        attributes,
+        children: vec![],
+    })
+}
+
+fn either<'a, P1, P2, A>(parser1: P1, parser2: P2) -> impl Parser<'a, A>
+where
+    P1: Parser<'a, A>,
+    P2: Parser<'a, A>,
+{
+    move |input| match parser1.parse(input) {
+        ok @ Ok(_) => ok,
+        Err(_) => parser2.parse(input),
+    }
+}
+
+fn element<'a>() -> impl Parser<'a, Element> {
+    either(single_element(), open_element())
+}
+
+fn close_element<'a>(expected_name: String) -> impl Parser<'a, String> {
+    right(match_literal("</"), left(identifier, match_literal(">")))
+        .pred(move |name| name == &expected_name)
+}
+
+
+// fn parent_element<'a>() -> impl Parser<'a, Element> {
+//   pair(
+//       open_element(),
+//       left(zero_or_more(element()), close_element(…oops)),
+//   )
+// }
 #[cfg(test)]
 mod test {
     // use core::num::dec2flt::parse;
