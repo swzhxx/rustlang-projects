@@ -59,6 +59,40 @@ impl<T: Clone> BinaryTree<T> {
     }
 }
 
+impl<T: Clone + Debug> BinaryTree<T> {
+    // 前序遍历
+    fn preorder(&self) {
+        println!("kes {:?}", &self.key);
+        if !self.left.is_none() {
+            self.left.as_ref().unwrap().preorder()
+        }
+        if !self.right.is_none() {
+            self.right.as_ref().unwrap().preorder()
+        }
+    }
+
+    // 后序遍历
+    fn postorder(&self) {
+        if !self.left.is_none() {
+            self.left.as_ref().unwrap().postorder();
+        }
+        if !self.right.is_none() {
+            self.right.as_ref().unwrap().postorder();
+        }
+        println!("key is {:?}", &self.key);
+    }
+
+    fn inorder(&self) {
+        if !self.left.is_none() {
+            self.left.as_ref().unwrap().inorder()
+        }
+        println!("key is {:?}", &self.key);
+        if !self.right.is_none() {
+            self.right.as_ref().unwrap().inorder();
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
