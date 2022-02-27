@@ -10,6 +10,12 @@ name = "pcm"
 [[example]]
 name = "h264"
 
+[[example]]
+name = "aac"
+
+[[example]]
+name = "flv"
+
 [dependencies]
 anyhow = "1"
 bytes = "1.1"
