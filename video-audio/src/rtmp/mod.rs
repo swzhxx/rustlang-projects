@@ -1,5 +1,2 @@
-mod handcheck;
-
-struct RtmpHeader {}
-
-struct RtmpPayload {}
+mod protocol;
+mod server;
