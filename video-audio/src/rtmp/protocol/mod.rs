@@ -7,6 +7,7 @@ use crate::{
 };
 
 use self::handshark::{HandShark0, HandSharkState};
+mod chunk;
 pub mod handshark;
 
 #[derive(Debug)]
