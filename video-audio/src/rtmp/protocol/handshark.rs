@@ -1,4 +1,4 @@
-use std::io::BufWriter;
+use std::{collections::HashMap, io::BufWriter};
 
 use async_trait::async_trait;
 use bytes::{Buf, BufMut, BytesMut};

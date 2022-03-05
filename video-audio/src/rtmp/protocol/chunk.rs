@@ -7,36 +7,24 @@ use crate::util::{
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
 
+use super::RtmpCtx;
+
 /// 当Basic Header为1个字节时，CSID占6位，6位最多可以表示64个数，因此这种情况下CSID在［0，63］之间，其中用户可自定义的范围为［3，63］。
 /// 当Basic Header为2个字节时，CSID占14位，此时协议将与chunk type所在字节的其他位都置为0，剩下的一个字节来表示CSID－64，这样共有8个二进制位来存储CSID，8位可以表示［0，255］共256个数，因此这种情况下CSID在［64，319］，其中319=255+64。
 /// 当Basic Header为3个字节时，CSID占22位，此时协议将［2，8］字节置为1，余下的16个字节表示CSID－64，这样共有16个位来存储CSID，16位可以表示［0，65535］共65536个数，因此这种情况下CSID在［64，65599］，其中65599=65535+64，需要注意的是，Basic Header是采用小端存储的方式，越往后的字节数量级越高，因此通过这3个字节每一位的值来计算CSID时，应该是:<第三个字节的值>x256+<第二个字节的值>+64
 
-struct Chunk {
+#[derive(Debug)]
+pub struct Chunk {
     pub cs_id: u32,
-    pub chunk_header: ChunkHeader,
+    pub chunk_header: ChunkMessageHeader,
     pub message_data: Vec<u8>,
-    pub extend_stamp: u32,
 }
 
 impl Chunk {
-    pub fn get_real_time_stamp(&self) -> i64 {
-        let timestamp = match &self.chunk_header {
-            ChunkHeader::ChunkHeader11(chunk) => chunk.time_stamp,
-            ChunkHeader::ChunkHeader7(chunk) => chunk.time_stamp_delta,
-            ChunkHeader::ChunkHeader3(chunk) => chunk.time_stamp_delta,
-            ChunkHeader::ChunkHeader0(_) => todo!(),
-        };
-        if self.extend_stamp > 0 {
-            (((self.extend_stamp as u64) << 24) | 0xFFFFFF00000000) as i64
-        } else {
-            timestamp as i64
-        }
-    }
-}
-
-#[async_trait]
-impl AsyncFrom for Chunk {
-    async fn async_from<Reader>(reader: &mut Reader) -> Self
+    pub async fn async_read_chunk<Reader>(
+        reader: &mut Reader,
+        ctx: &RtmpCtx,
+    ) -> (Self, FullChunkMessageHeader)
     where
         Reader: AR,
     {
@@ -44,69 +32,147 @@ impl AsyncFrom for Chunk {
         let one = byte.get_u8();
         let fmt = one >> 6;
         let mut cs_id = 0 as u32;
-        let chunk_header = match fmt {
+        let chunk_message_header = match fmt {
             0 => {
                 cs_id = (one << 2 >> 2) as u32;
-                ChunkHeader::ChunkHeader11(ChunkHeader11::async_from(reader).await)
+                ChunkMessageHeader::ChunkMessageHeader11(
+                    ChunkMessageHeader11::async_from(reader).await,
+                )
             }
             1 => {
                 cs_id = (async_read_1_byte(reader).await.get_u8() as u32) + 64;
-                ChunkHeader::ChunkHeader7(ChunkHeader7::async_from(reader).await)
+                ChunkMessageHeader::ChunkMessageHeader7(
+                    ChunkMessageHeader7::async_from(reader).await,
+                )
             }
             2 => {
                 let mut byte = async_read_2_byte(reader).await;
                 cs_id = byte.get_u16_le() as u32 + 64;
-                ChunkHeader::ChunkHeader3(ChunkHeader3::async_from(reader).await)
+                ChunkMessageHeader::ChunkMessageHeader3(
+                    ChunkMessageHeader3::async_from(reader).await,
+                )
             }
-            3 => ChunkHeader::ChunkHeader0(ChunkHeader0),
+            3 => ChunkMessageHeader::ChunkMessageHeader0(ChunkMessageHeader0),
             _ => {
                 unreachable!()
             }
         };
 
-        let timestamp = match &chunk_header {
-            ChunkHeader::ChunkHeader11(chunk) => chunk.time_stamp,
-            ChunkHeader::ChunkHeader7(chunk) => chunk.time_stamp_delta,
-            ChunkHeader::ChunkHeader3(chunk) => chunk.time_stamp_delta,
-            ChunkHeader::ChunkHeader0(_) => {
-                // todo  this is error! 该类型需要比较最近相同的ChunkId的块是否存在timestamp
-                0
+        // TODO extend timestamp 解析，这将是一个错误 , 但是现在我们不考虑
+        let mut will_return_full_chunk_message_header: FullChunkMessageHeader;
+        // ChunMessagekHeader的解析
+        let last_full_chunk_message_header = ctx.last_full_chunk_message_header.get(&cs_id);
+
+        let mut will_read_message_length: u32 = 0;
+        if last_full_chunk_message_header.is_none() {
+            will_read_message_length = match &chunk_message_header {
+                ChunkMessageHeader::ChunkMessageHeader11(chunk_message_header) => {
+                    will_return_full_chunk_message_header = chunk_message_header.into();
+                    let reminder_message_length = {
+                        let reminder =
+                            chunk_message_header.message_length as i64 - ctx.chunk_size as i64;
+                        if reminder >= 0 {
+                            reminder
+                        } else {
+                            0
+                        }
+                    };
+                    will_return_full_chunk_message_header.reminder_message_length =
+                        reminder_message_length as u32;
+                    // chunk_message_header.message_length
+                    if reminder_message_length > 0i64 {
+                        ctx.chunk_size
+                    } else {
+                        chunk_message_header.message_length
+                    }
+                }
+                _ => {
+                    log::error!("[CHUNK ERROR]");
+                    unreachable!()
+                }
             }
-        };
-
-        let mut extend_stamp = 0;
-        if timestamp == 16777215 {
-            extend_stamp = async_read_4_byte(reader).await.get_u32();
+        } else {
+            let last_full_chunk_message_header = last_full_chunk_message_header.unwrap();
+            will_read_message_length = match &chunk_message_header {
+                ChunkMessageHeader::ChunkMessageHeader11(_) => {
+                    log::error!("[CHUNK ERROR]");
+                    unreachable!()
+                }
+                ChunkMessageHeader::ChunkMessageHeader7(chunk_message_header) => {
+                    will_return_full_chunk_message_header = FullChunkMessageHeader {
+                        time_stamp: last_full_chunk_message_header.time_stamp
+                            + chunk_message_header.time_stamp_delta,
+                        msg_stream_id: last_full_chunk_message_header.msg_stream_id,
+                        message_type: chunk_message_header.message_type.clone(),
+                        message_length: chunk_message_header.message_length,
+                        reminder_message_length: 0,
+                    };
+                    will_return_full_chunk_message_header.message_length
+                }
+                ChunkMessageHeader::ChunkMessageHeader3(chunk_message_header) => {
+                    will_return_full_chunk_message_header = FullChunkMessageHeader {
+                        time_stamp: last_full_chunk_message_header.time_stamp
+                            + chunk_message_header.time_stamp_delta,
+                        message_length: last_full_chunk_message_header.message_length,
+                        message_type: last_full_chunk_message_header.message_type.clone(),
+                        msg_stream_id: last_full_chunk_message_header.msg_stream_id,
+                        reminder_message_length: 0,
+                    };
+                    will_return_full_chunk_message_header.message_length
+                }
+                ChunkMessageHeader::ChunkMessageHeader0(_) => {
+                    let FullChunkMessageHeader {
+                        reminder_message_length,
+                        ..
+                    } = last_full_chunk_message_header;
+                    will_return_full_chunk_message_header = last_full_chunk_message_header.clone();
+                    let will_read_size = reminder_message_length - ctx.chunk_size;
+                    if will_read_size > 0 {
+                        if will_read_size > ctx.chunk_size {
+                            will_return_full_chunk_message_header.reminder_message_length = 0;
+                            ctx.chunk_size
+                        } else {
+                            will_return_full_chunk_message_header.reminder_message_length -=
+                                will_read_size;
+                            will_read_size
+                        }
+                    } else {
+                        last_full_chunk_message_header.message_length
+                    }
+                }
+            }
         }
 
-        let message_data = vec![];
-        Self {
+        // 读取Data
+        let bytes = async_read_num_byte(reader, will_read_message_length as usize).await;
+        let chunk = Chunk {
             cs_id,
-            chunk_header,
-            message_data,
-            extend_stamp: extend_stamp,
-        }
+            chunk_header: chunk_message_header,
+            message_data: bytes.to_vec(),
+        };
+        (chunk, will_return_full_chunk_message_header)
     }
 }
 
-pub enum ChunkHeader {
-    ChunkHeader11(ChunkHeader11),
-    ChunkHeader7(ChunkHeader7),
-    ChunkHeader3(ChunkHeader3),
-    ChunkHeader0(ChunkHeader0),
+#[derive(Debug)]
+pub enum ChunkMessageHeader {
+    ChunkMessageHeader11(ChunkMessageHeader11),
+    ChunkMessageHeader7(ChunkMessageHeader7),
+    ChunkMessageHeader3(ChunkMessageHeader3),
+    ChunkMessageHeader0(ChunkMessageHeader0),
 }
 
-#[derive(Debug)]
-pub struct ChunkHeader11 {
+#[derive(Debug, Clone)]
+pub struct ChunkMessageHeader11 {
     // timestamp_delta:
-    time_stamp: u32,
-    message_length: u32,
-    message_type: MessageType,
-    message_stream_id: u32,
+    pub time_stamp: u32,
+    pub message_length: u32,
+    pub message_type: MessageType,
+    pub message_stream_id: u32,
 }
 
 #[async_trait]
-impl AsyncFrom for ChunkHeader11 {
+impl AsyncFrom for ChunkMessageHeader11 {
     async fn async_from<Reader>(reader: &mut Reader) -> Self
     where
         Reader: AR,
@@ -136,15 +202,15 @@ impl AsyncFrom for ChunkHeader11 {
     }
 }
 
-#[derive(Debug)]
-pub struct ChunkHeader7 {
-    time_stamp_delta: u32,
-    message_length: u32,
-    message_type: MessageType,
+#[derive(Debug, Clone)]
+pub struct ChunkMessageHeader7 {
+    pub time_stamp_delta: u32,
+    pub message_length: u32,
+    pub message_type: MessageType,
 }
 
 #[async_trait]
-impl AsyncFrom for ChunkHeader7 {
+impl AsyncFrom for ChunkMessageHeader7 {
     async fn async_from<Reader>(reader: &mut Reader) -> Self
     where
         Reader: AR,
@@ -162,18 +228,18 @@ impl AsyncFrom for ChunkHeader7 {
         Self {
             time_stamp_delta,
             message_length,
-            message_type,
+            message_type: message_type,
         }
     }
 }
 
-#[derive(Debug)]
-pub struct ChunkHeader3 {
-    time_stamp_delta: u32,
+#[derive(Debug, Clone)]
+pub struct ChunkMessageHeader3 {
+    pub time_stamp_delta: u32,
 }
 
 #[async_trait]
-impl AsyncFrom for ChunkHeader3 {
+impl AsyncFrom for ChunkMessageHeader3 {
     async fn async_from<Reader>(reader: &mut Reader) -> Self
     where
         Reader: AR,
@@ -188,11 +254,44 @@ impl AsyncFrom for ChunkHeader3 {
 }
 
 #[derive(Debug)]
-struct ChunkHeader0;
+struct ChunkMessageHeader0;
 
-#[derive(Debug)]
-enum MessageType {
-    UNKOWN = 0,
+#[derive(Debug, Clone)]
+pub struct FullChunkMessageHeader {
+    pub time_stamp: u32,
+    pub message_length: u32,
+    pub message_type: MessageType,
+    pub msg_stream_id: u32,
+    pub reminder_message_length: u32,
+}
+
+impl Into<FullChunkMessageHeader> for &ChunkMessageHeader11 {
+    fn into(self) -> FullChunkMessageHeader {
+        FullChunkMessageHeader {
+            time_stamp: self.time_stamp,
+            message_length: self.message_length,
+            reminder_message_length: 0,
+            message_type: self.message_type.clone(),
+            msg_stream_id: self.message_stream_id,
+        }
+    }
+}
+
+use super::message;
+use super::message::AbortMessage;
+use super::message::Acknowledgement;
+use super::message::SetChunkSize;
+use super::message::SetPeerBandWidth;
+use super::message::UnknownMessage;
+use super::message::WindowAcknowledgement;
+#[derive(Debug, Clone)]
+pub enum MessageType {
+    UNKOWN,
+    SET_CHUNK_SIZE(SetChunkSize),
+    ABORT_MESSAGE(AbortMessage),
+    ACKNOWLEDGEMENT(Acknowledgement),
+    WINDOW_ACKNOWLEDGEMENT(WindowAcknowledgement),
+    SET_PEER_BANDWIDTH(SetPeerBandWidth),
 }
 
 impl From<u8> for MessageType {

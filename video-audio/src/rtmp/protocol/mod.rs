@@ -1,52 +1,79 @@
+use std::{collections::HashMap, pin::Pin};
+
 use anyhow::Result;
-use tokio::{net::TcpStream, stream};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt},
+    net::TcpStream,
+    stream,
+};
 
 use crate::{
     rtmp::protocol::handshark::{HandShark1, HandShark2},
-    util::{gen_random_bytes, AsyncFrom, AsyncWriteByte},
+    util::{gen_random_bytes, AsyncFrom, AsyncWriteByte, AR, AW},
 };
 
-use self::handshark::{HandShark0, HandSharkState};
+use self::{
+    chunk::Chunk,
+    handshark::{HandShark0, HandSharkState},
+};
 mod chunk;
+
 pub mod handshark;
+mod message;
+mod read_effect;
 
 #[derive(Debug)]
-struct RtmpCtx {
-    receive_handshark_state: Option<HandSharkState>,
-    send_handshark_state: Option<HandShark1>,
-    ctx_begig_timestamp: i64,
+pub struct RtmpCtx {
+    ctx_begin_timestamp: i64,
+    pub last_full_chunk_message_header: HashMap<u32, chunk::FullChunkMessageHeader>,
+    chunk_size: u32,
+    pub reve_bytes: usize,
 }
 
-impl Default for RtmpCtx {
-    fn default() -> Self {
+impl RtmpCtx {
+    fn new(stream: TcpStream) -> Self {
         Self {
-            receive_handshark_state: Default::default(),
-            send_handshark_state: Default::default(),
-            ctx_begig_timestamp: chrono::Local::now().timestamp_millis(),
+            ctx_begin_timestamp: chrono::Local::now().timestamp_millis(),
+            last_full_chunk_message_header: HashMap::default(),
+            chunk_size: 128,
+            reve_bytes: 0,
         }
     }
 }
 
+// impl AsyncRead for RtmpCtx {
+//     fn poll_read(
+//         self: std::pin::Pin<&mut Self>,
+//         cx: &mut std::task::Context<'_>,
+//         buf: &mut tokio::io::ReadBuf<'_>,
+//     ) -> std::task::Poll<std::io::Result<()>> {
+//         // self.stream.poll_read(cx, buf)
+//     }
+// }
+
 impl RtmpCtx {
-    async fn handle_hand_check(&mut self, stream: &mut TcpStream) -> anyhow::Result<()> {
+    async fn handle_hand_check(stream: &mut TcpStream) -> anyhow::Result<()> {
+        let mut receive_handshark_state: Option<HandSharkState> = None;
+        let mut send_handshark_state: Option<HandShark1> = None;
+        let begin_timestamp = chrono::Local::now().timestamp_millis();
         loop {
-            match &self.receive_handshark_state {
-                Some(receive_handshark_state) => match receive_handshark_state {
+            match receive_handshark_state {
+                Some(rhs) => match rhs {
                     HandSharkState::C0(_) => {
                         let s0 = HandShark0::default();
                         s0.async_write_byte(stream).await;
                         log::trace!("[SEND]->S0");
                         let mut s1 = HandShark1::default();
-                        s1.time = (chrono::Local::now().timestamp_millis()
-                            - self.ctx_begig_timestamp) as u32;
+                        s1.time =
+                            (chrono::Local::now().timestamp_millis() - begin_timestamp) as u32;
                         s1.random_data = gen_random_bytes(1528);
                         s1.async_write_byte(stream).await;
                         log::trace!("[SEND] -> S1");
-                        self.send_handshark_state = Some(s1);
+                        send_handshark_state = Some(s1);
 
                         let c1 = HandShark1::async_from(stream).await;
                         log::trace!("[RECEIVE] -> C1 time:{:?}", c1.time);
-                        self.receive_handshark_state = Some(HandSharkState::C1(c1));
+                        receive_handshark_state = Some(HandSharkState::C1(c1));
                     }
                     HandSharkState::C1(c1) => {
                         let s2 = HandShark2 {
@@ -59,13 +86,13 @@ impl RtmpCtx {
                         log::trace!("[SEND] -> S2 ");
                         let c2 = HandShark2::async_from(stream).await;
                         log::trace!("[RECEIVE] -> C2 time1:{:?} time2{:?}", c2.time1, c2.time2);
-                        self.receive_handshark_state = Some(HandSharkState::C2(c2));
+                        receive_handshark_state = Some(HandSharkState::C2(c2));
                     }
                     HandSharkState::C2(c2) => {
                         // 比对数据
                         assert_eq!(
                             c2.random_echo,
-                            self.send_handshark_state.as_ref().unwrap().random_data
+                            send_handshark_state.as_ref().unwrap().random_data
                         );
                         log::info!("[HANDSHARK SUCCESS]");
                         break;
@@ -77,7 +104,7 @@ impl RtmpCtx {
                 None => {
                     let c0 = HandShark0::async_from(stream).await;
                     log::trace!("[RECEIVE]-> C0 version:{:?}", c0.version);
-                    self.receive_handshark_state = Some(HandSharkState::C0(c0));
+                    receive_handshark_state = Some(HandSharkState::C0(c0));
                 }
             }
         }
@@ -85,8 +112,22 @@ impl RtmpCtx {
     }
 }
 
+impl RtmpCtx {
+    async fn handle_receive_chunk(&mut self, mut stream: TcpStream) -> anyhow::Result<()> {
+        let (chunk, full_chunk_message_header) = Chunk::async_read_chunk(&mut stream, self).await;
+        match chunk.chunk_header {
+            chunk::ChunkMessageHeader::ChunkMessageHeader11(chunk) => {
+                todo!()
+            }
+            chunk::ChunkMessageHeader::ChunkMessageHeader7(_) => todo!(),
+            chunk::ChunkMessageHeader::ChunkMessageHeader3(_) => todo!(),
+            chunk::ChunkMessageHeader::ChunkMessageHeader0(..) => todo!(),
+        }
+    }
+}
+
 pub async fn accpect_rtmp(mut stream: TcpStream) -> Result<()> {
-    let mut rtmp_ctx = RtmpCtx::default();
-    rtmp_ctx.handle_hand_check(&mut stream).await?;
+    RtmpCtx::handle_hand_check(&mut stream).await?;
+    let mut rtmp_ctx = RtmpCtx::new(stream);
     Ok(())
 }
