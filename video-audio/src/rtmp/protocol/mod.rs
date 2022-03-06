@@ -13,13 +13,15 @@ use crate::{
 };
 
 use self::{
-    chunk::Chunk,
+    chunk::{Chunk, FullChunkMessageHeader},
     handshark::{HandShark0, HandSharkState},
+    read_effect::AsyncReaderEffect,
 };
 mod chunk;
 
 pub mod handshark;
 mod message;
+
 mod read_effect;
 
 #[derive(Debug)]
@@ -31,7 +33,7 @@ pub struct RtmpCtx {
 }
 
 impl RtmpCtx {
-    fn new(stream: TcpStream) -> Self {
+    fn new() -> Self {
         Self {
             ctx_begin_timestamp: chrono::Local::now().timestamp_millis(),
             last_full_chunk_message_header: HashMap::default(),
@@ -40,16 +42,6 @@ impl RtmpCtx {
         }
     }
 }
-
-// impl AsyncRead for RtmpCtx {
-//     fn poll_read(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>,
-//         buf: &mut tokio::io::ReadBuf<'_>,
-//     ) -> std::task::Poll<std::io::Result<()>> {
-//         // self.stream.poll_read(cx, buf)
-//     }
-// }
 
 impl RtmpCtx {
     async fn handle_hand_check(stream: &mut TcpStream) -> anyhow::Result<()> {
@@ -113,21 +105,35 @@ impl RtmpCtx {
 }
 
 impl RtmpCtx {
-    async fn handle_receive_chunk(&mut self, mut stream: TcpStream) -> anyhow::Result<()> {
-        let (chunk, full_chunk_message_header) = Chunk::async_read_chunk(&mut stream, self).await;
-        match chunk.chunk_header {
-            chunk::ChunkMessageHeader::ChunkMessageHeader11(chunk) => {
-                todo!()
-            }
-            chunk::ChunkMessageHeader::ChunkMessageHeader7(_) => todo!(),
-            chunk::ChunkMessageHeader::ChunkMessageHeader3(_) => todo!(),
-            chunk::ChunkMessageHeader::ChunkMessageHeader0(..) => todo!(),
+    async fn handle_receive_chunk(&mut self, stream: &mut TcpStream) -> anyhow::Result<()> {
+        loop {
+            let (chunk, full_chunk_message_header) = {
+                let mut effect_reader = AsyncReaderEffect::new(stream);
+                let result = Chunk::async_read_chunk(&mut effect_reader, self).await;
+                self.reve_bytes += effect_reader.get_readed_bytes_num();
+                log::trace!(
+                    "[RECEIVED BYTES ] -> {}",
+                    effect_reader.get_readed_bytes_num()
+                );
+                result
+            };
+
+            let message_type = full_chunk_message_header.message_type.clone();
+            self.last_full_chunk_message_header
+                .insert(chunk.cs_id, full_chunk_message_header);
+            // 执行消息
+            message_type
+                .dispatch(&chunk.message_data, self, stream)
+                .await;
         }
+        Ok(())
     }
 }
 
 pub async fn accpect_rtmp(mut stream: TcpStream) -> Result<()> {
     RtmpCtx::handle_hand_check(&mut stream).await?;
-    let mut rtmp_ctx = RtmpCtx::new(stream);
+    let mut rtmp_ctx = RtmpCtx::new();
+    rtmp_ctx.handle_receive_chunk(&mut stream).await?;
+
     Ok(())
 }

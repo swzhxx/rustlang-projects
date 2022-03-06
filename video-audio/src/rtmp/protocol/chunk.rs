@@ -7,7 +7,7 @@ use crate::util::{
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
 
-use super::RtmpCtx;
+use super::{RtmpCtx, message::MessageType};
 
 /// 当Basic Header为1个字节时，CSID占6位，6位最多可以表示64个数，因此这种情况下CSID在［0，63］之间，其中用户可自定义的范围为［3，63］。
 /// 当Basic Header为2个字节时，CSID占14位，此时协议将与chunk type所在字节的其他位都置为0，剩下的一个字节来表示CSID－64，这样共有8个二进制位来存储CSID，8位可以表示［0，255］共256个数，因此这种情况下CSID在［64，319］，其中319=255+64。
@@ -188,7 +188,7 @@ impl AsyncFrom for ChunkMessageHeader11 {
         let message_length = rbytes.get_u32();
         let message_type_id = bytes.get_u8();
         // TODO Message Type
-        let message_type = MessageType::UNKOWN;
+        let message_type = message_type_id.into();
         let mut message_stream_id_bytes = bytes.get(0..3).unwrap().to_vec();
         message_stream_id_bytes.insert(0, 0u8);
         let message_stream_id = BytesMut::from_iter(message_stream_id_bytes.iter()).get_u32();
@@ -223,8 +223,7 @@ impl AsyncFrom for ChunkMessageHeader7 {
         let message_length = message_length_header << 16 + message_reminder;
 
         let message_type_id = async_read_1_byte(reader).await.get_u8();
-        // TODO
-        let message_type = MessageType::UNKOWN;
+        let message_type = message_type_id.into();
         Self {
             time_stamp_delta,
             message_length,
@@ -274,28 +273,5 @@ impl Into<FullChunkMessageHeader> for &ChunkMessageHeader11 {
             message_type: self.message_type.clone(),
             msg_stream_id: self.message_stream_id,
         }
-    }
-}
-
-use super::message;
-use super::message::AbortMessage;
-use super::message::Acknowledgement;
-use super::message::SetChunkSize;
-use super::message::SetPeerBandWidth;
-use super::message::UnknownMessage;
-use super::message::WindowAcknowledgement;
-#[derive(Debug, Clone)]
-pub enum MessageType {
-    UNKOWN,
-    SET_CHUNK_SIZE(SetChunkSize),
-    ABORT_MESSAGE(AbortMessage),
-    ACKNOWLEDGEMENT(Acknowledgement),
-    WINDOW_ACKNOWLEDGEMENT(WindowAcknowledgement),
-    SET_PEER_BANDWIDTH(SetPeerBandWidth),
-}
-
-impl From<u8> for MessageType {
-    fn from(_: u8) -> Self {
-        todo!()
     }
 }
