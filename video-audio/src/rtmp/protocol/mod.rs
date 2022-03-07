@@ -30,6 +30,7 @@ pub struct RtmpCtx {
     pub last_full_chunk_message_header: HashMap<u32, chunk::FullChunkMessageHeader>,
     chunk_size: u32,
     pub reve_bytes: usize,
+    abort_chunk_id: Option<u32>,
 }
 
 impl RtmpCtx {
@@ -39,6 +40,7 @@ impl RtmpCtx {
             last_full_chunk_message_header: HashMap::default(),
             chunk_size: 128,
             reve_bytes: 0,
+            abort_chunk_id: None,
         }
     }
 }
@@ -115,6 +117,7 @@ impl RtmpCtx {
                     "[RECEIVED BYTES ] -> {}",
                     effect_reader.get_readed_bytes_num()
                 );
+                log::trace!("[RECEIVED MESSAGE TYPE] -> {:?}", result.1.message_type);
                 result
             };
 
