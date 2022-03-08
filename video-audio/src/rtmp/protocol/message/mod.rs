@@ -11,25 +11,52 @@ use crate::util::{AsyncWriteByte, AW};
 use super::chunk::{Chunk, FullChunkMessageHeader};
 
 #[derive(Debug, Clone)]
-pub struct Message {
+pub struct  Message {
     pub message_type: MessageType,
     payload_length: u32,
     pub time_stamp: u32,
     pub message_stream_id: u32,
     pub message_body: Vec<u8>,
+    pub chunk_id: u32,
 }
 
 impl Message {
+    fn new(
+        chunk_id: u32,
+        message_type: MessageType,
+        time_stamp: u32,
+        message_stream_id: u32,
+        message_body: Vec<u8>,
+    ) -> Self {
+        let payload_length = message_body.len() as u32;
+        Self {
+            chunk_id,
+            payload_length,
+            message_type,
+            time_stamp,
+            message_stream_id,
+            message_body,
+        }
+    }
     fn from_chunks(mut chunks: Vec<Chunk>, full_chunk_descr: &FullChunkMessageHeader) -> Self {
         let message_type = full_chunk_descr.message_type.clone();
+        let chunk_id = 0;
         let message_stream_id = full_chunk_descr.msg_stream_id;
         let time_stamp = full_chunk_descr.time_stamp;
+        let chunk_id = match chunks.get(0) {
+            Some(chunk) => chunk.cs_id,
+            None => {
+                log::error!("[MESSAGE FROM CHUNKS CAN NOT FIND CHUNK]");
+                0
+            }
+        };
         let body = chunks.iter_mut().fold(vec![], |mut body, chunk| {
             body.append(&mut chunk.message_data);
             return body;
         });
         let payload_length = body.len() as u32;
         Self {
+            chunk_id,
             message_type,
             payload_length,
             time_stamp,
@@ -55,7 +82,7 @@ impl AsyncWriteByte for Message {
         let payload_length = &self.message_body.len().to_be_bytes()[1..3];
 
         let message_stream_id = &self.message_stream_id.to_be_bytes()[1..3];
-
+        // TODO 写入chunk_id
         writer.write_u8(message_type).await;
         writer.write_all(payload_length).await;
         writer.write_u32(self.time_stamp).await;
