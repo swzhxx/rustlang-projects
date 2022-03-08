@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 
-use super::{EventType, SetPeerBandWidth, UserControlMessage, WindowAcknowledgement};
+use super::{EventType, MessageType, SetPeerBandWidth, UserControlMessage, WindowAcknowledgement};
 use crate::{
-    rtmp::protocol::RtmpCtx,
-    util::{read_all_amf_value, AW},
+    rtmp::protocol::{message::Message, RtmpCtx},
+    util::{read_all_amf_value, AsyncWriteByte, AW},
 };
 use amf::amf0;
 
@@ -33,7 +33,11 @@ impl FromAMF0Data for CommandMessageAMF020 {
 }
 
 impl CommandMessageAMF020 {
-    async fn excute<Writer>(data: &[u8], ctx: &mut RtmpCtx, writer: Writer) -> anyhow::Result<()>
+    pub async fn excute<Writer>(
+        data: &[u8],
+        ctx: &mut RtmpCtx,
+        writer: &mut Writer,
+    ) -> anyhow::Result<()>
     where
         Writer: AW,
     {
@@ -46,7 +50,10 @@ impl CommandMessageAMF020 {
                 }
                 let command = values[0].try_as_str().unwrap();
                 match command {
-                    "connect" => {}
+                    "connect" => {
+                        Connect::excute_mut(ctx, writer).await;
+                        Connect::response(ctx, writer).await;
+                    }
                     "createStream" => {}
                     "publish" => {}
                     "play" => {}
@@ -57,6 +64,31 @@ impl CommandMessageAMF020 {
             }
             None => Err(anyhow::anyhow!("[AMF0CommandMessage] expect AMF0 data"))?,
         }
+    }
+
+    pub async fn send<Writer>(command_type: Command, data: &Vec<amf0::Value>, writer: &mut Writer)
+    where
+        Writer: AW,
+    {
+        let cs_id = 2;
+        let message_stream_id = 0;
+
+        let mut message_body = vec![];
+        let command_type: amf0::Value = (&command_type).into();
+
+        for i in 0..data.len() {
+            let data = &data[i];
+            data.write_to(&mut message_body);
+        }
+
+        let message = Message::new(
+            cs_id,
+            MessageType::USER_CONTROL_MESSAGE(UserControlMessage),
+            0,
+            message_stream_id,
+            message_body,
+        );
+        message.async_write_byte(writer).await;
     }
 }
 
@@ -71,6 +103,18 @@ pub enum Command {
     UNKOWN,
 }
 
+impl Into<amf0::Value> for &Command {
+    fn into(self) -> amf0::Value {
+        match self {
+            Command::CONNECT(_) => amf0::Value::String("connect".to_string()),
+            Command::CREATE_STREAM(_) => amf0::Value::String("create_stream".to_string()),
+            Command::PUBLISH(_) => amf0::Value::String("publish".to_string()),
+            Command::PLAY(_) => amf0::Value::String("play".to_string()),
+            Command::UNKOWN => amf0::Value::String("unknown".to_string()),
+        }
+    }
+}
+
 #[async_trait]
 pub trait CommandExcute {
     async fn excute(ctx: &RtmpCtx) {}
@@ -83,8 +127,15 @@ pub trait CommandExcuteMut {
         Writer: AW;
 }
 
+#[async_trait]
+pub trait CommandResponse {
+    async fn response<Writer>(ctx: &mut RtmpCtx, writer: &mut Writer)
+    where
+        Writer: AW;
+}
+
 #[derive(Debug, Clone)]
-struct Connect;
+pub struct Connect;
 
 #[async_trait]
 impl CommandExcuteMut for Connect {
@@ -94,6 +145,16 @@ impl CommandExcuteMut for Connect {
     {
         WindowAcknowledgement::send(4096, ctx, writer).await;
         SetPeerBandWidth::send(4096, super::LimitType::Hard, ctx, writer).await;
+        UserControlMessage::send(EventType::STREAM_BEGIN, writer);
+    }
+}
+
+#[async_trait]
+impl CommandResponse for Connect {
+    async fn response<Writer>(ctx: &mut RtmpCtx, writer: &mut Writer)
+    where
+        Writer: AW,
+    {
         let mut amf_datas = vec![];
         amf_datas.push(amf0::Value::String("_result".to_string()));
         amf_datas.push(amf0::Value::Number(1.0));
@@ -131,14 +192,14 @@ impl CommandExcuteMut for Connect {
                 },
             ],
         });
-        UserControlMessage::send(EventType::STREAM_BEGIN, &amf_datas, writer);
+        CommandMessageAMF020::send(Command::CONNECT(Connect), &amf_datas, writer).await;
     }
 }
 
 #[derive(Debug, Clone)]
-struct CreateStream;
+pub struct CreateStream;
 
 #[derive(Debug, Clone)]
-struct Publish;
+pub struct Publish;
 
-struct Play;
+pub struct Play;

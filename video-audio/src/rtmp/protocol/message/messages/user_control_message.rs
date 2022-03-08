@@ -14,28 +14,32 @@ impl UserControlMessage {
     pub async fn excute() {
         todo!()
     }
-    pub async fn send<Writer>(
-        event_type: EventType,
-        amf_data: &Vec<amf0::Value>,
-        writer: &mut Writer,
-    ) where
+    pub async fn send<Writer>(event_type: EventType, writer: &mut Writer)
+    where
         Writer: AW,
     {
         let cs_id = 2;
         let message_stream_id = 0;
-        let event_type_num = event_type as u8;
-        let event_type_num = event_type_num as u16;
-        let mut message_body = Vec::from_iter(event_type_num.to_be_bytes().into_iter());
-        amf_data.iter().for_each(|data| {
-            data.write_to(&mut message_body);
-        });
+
+        let message_body = (event_type as u32).to_be_bytes().to_vec();
         let message = Message::new(
             cs_id,
             MessageType::USER_CONTROL_MESSAGE(UserControlMessage),
             0,
-            message_stream_id,
+            0,
             message_body,
         );
+        // let mut message_body = Vec::from_iter(event_type_num.to_be_bytes().into_iter());
+        // amf_data.iter().for_each(|data| {
+        //     data.write_to(&mut message_body);
+        // });
+        // let message = Message::new(
+        //     cs_id,
+        //     MessageType::USER_CONTROL_MESSAGE(UserControlMessage),
+        //     0,
+        //     message_stream_id,
+        //     message_body,
+        // );
         message.async_write_byte(writer).await;
     }
 }

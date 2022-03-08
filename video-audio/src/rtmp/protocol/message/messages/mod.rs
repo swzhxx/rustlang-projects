@@ -322,6 +322,9 @@ impl MessageType {
             MessageType::SET_PEER_BANDWIDTH(_) => {
                 SetPeerBandWidth::excute(chunk_data, ctx, stream).await
             }
+            MessageType::COMMAND_MESSAGE_AMF0_20(_) => {
+                CommandMessageAMF020::excute(chunk_data, ctx, stream).await;
+            }
             _ => todo!(),
         }
     }

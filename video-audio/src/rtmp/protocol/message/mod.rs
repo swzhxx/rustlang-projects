@@ -11,7 +11,7 @@ use crate::util::{AsyncWriteByte, AW};
 use super::chunk::{Chunk, FullChunkMessageHeader};
 
 #[derive(Debug, Clone)]
-pub struct  Message {
+pub struct Message {
     pub message_type: MessageType,
     payload_length: u32,
     pub time_stamp: u32,
