@@ -124,6 +124,7 @@ impl WindowAcknowledgement {
             0,
             ack_window_size.to_be_bytes().to_vec(),
         );
+
         message.async_write_byte(writer).await
     }
 }
@@ -163,6 +164,7 @@ impl SetPeerBandWidth {
             0,
             chunk_data,
         );
+
         message.async_write_byte(writer).await;
     }
 }
@@ -320,7 +322,7 @@ impl MessageType {
                 WindowAcknowledgement::excute(chunk_data, ctx, stream).await;
             }
             MessageType::SET_PEER_BANDWIDTH(_) => {
-                SetPeerBandWidth::excute(chunk_data, ctx, stream).await
+                SetPeerBandWidth::excute(chunk_data, ctx, stream).await;
             }
             MessageType::COMMAND_MESSAGE_AMF0_20(_) => {
                 CommandMessageAMF020::excute(chunk_data, ctx, stream).await;

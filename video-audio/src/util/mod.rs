@@ -1,5 +1,6 @@
 mod effect_bytes;
-
+mod event_bus;
+pub use event_bus::EventBus;
 use std::io::Write;
 
 use amf::amf0;
@@ -82,7 +83,10 @@ pub fn calc_amf_byte_len(v: &amf0::Value) -> usize {
             len
         }
         Value::Array { entries: _ } => unimplemented!(),
-        Value::Date { unix_time: _, time_zone } => unimplemented!(),
+        Value::Date {
+            unix_time: _,
+            time_zone,
+        } => unimplemented!(),
         Value::XmlDocument(_) => unimplemented!(),
         Value::AvmPlus(_) => unimplemented!(),
     }

@@ -1,6 +1,8 @@
 use std::{collections::HashMap, pin::Pin};
 
 use anyhow::Result;
+use dashmap::DashMap;
+use once_cell::sync::OnceCell;
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
     net::TcpStream,
@@ -9,12 +11,13 @@ use tokio::{
 
 use crate::{
     rtmp::protocol::handshark::{HandShark1, HandShark2},
-    util::{gen_random_bytes, AsyncFrom, AsyncWriteByte, AR, AW},
+    util::{gen_random_bytes, AsyncFrom, AsyncWriteByte, EventBus, AR, AW},
 };
 
 use self::{
     chunk::{Chunk, FullChunkMessageHeader},
     handshark::{HandShark0, HandSharkState},
+    message::{Message, MessageFactor},
     read_effect::AsyncReaderEffect,
 };
 mod chunk;
@@ -24,6 +27,26 @@ mod message;
 
 mod read_effect;
 
+pub fn eventbus_map() -> &'static DashMap<String, EventBus<Message>> {
+    static INSTANCE: OnceCell<DashMap<String, EventBus<Message>>> = OnceCell::new();
+    INSTANCE.get_or_init(|| DashMap::new())
+}
+
+pub fn video_header_map() -> &'static DashMap<String, Message> {
+    static INSTANCE: OnceCell<DashMap<String, Message>> = OnceCell::new();
+    INSTANCE.get_or_init(|| DashMap::new())
+}
+
+pub fn audio_header_map() -> &'static DashMap<String, Message> {
+    static INSTANCE: OnceCell<DashMap<String, Message>> = OnceCell::new();
+    INSTANCE.get_or_init(|| DashMap::new())
+}
+
+pub fn meta_data_map() -> &'static DashMap<String, Message> {
+    static INSTANCE: OnceCell<DashMap<String, Message>> = OnceCell::new();
+    INSTANCE.get_or_init(|| DashMap::new())
+}
+
 #[derive(Debug)]
 pub struct RtmpCtx {
     ctx_begin_timestamp: i64,
@@ -31,6 +54,8 @@ pub struct RtmpCtx {
     chunk_size: u32,
     pub reve_bytes: usize,
     abort_chunk_id: Option<u32>,
+    stream_name: Option<String>,
+    is_publisher: bool,
 }
 
 impl RtmpCtx {
@@ -41,6 +66,8 @@ impl RtmpCtx {
             chunk_size: 128,
             reve_bytes: 0,
             abort_chunk_id: None,
+            stream_name: None,
+            is_publisher: false,
         }
     }
 }
@@ -108,26 +135,39 @@ impl RtmpCtx {
 
 impl RtmpCtx {
     async fn handle_receive_chunk(&mut self, stream: &mut TcpStream) -> anyhow::Result<()> {
+        let mut message_factor = MessageFactor::new();
         loop {
             let (chunk, full_chunk_message_header) = {
                 let mut effect_reader = AsyncReaderEffect::new(stream);
                 let result = Chunk::async_read_chunk(&mut effect_reader, self).await;
                 self.reve_bytes += effect_reader.get_readed_bytes_num();
+                log::trace!("[RECEIVED CHUNK ID] -> {:?}", result.0.cs_id);
                 log::trace!(
                     "[RECEIVED BYTES ] -> {}",
                     effect_reader.get_readed_bytes_num()
                 );
                 log::trace!("[RECEIVED MESSAGE TYPE] -> {:?}", result.1.message_type);
+
                 result
             };
-
-            let message_type = full_chunk_message_header.message_type.clone();
             self.last_full_chunk_message_header
-                .insert(chunk.cs_id, full_chunk_message_header);
-            // 执行消息
-            message_type
-                .dispatch(&chunk.message_data, self, stream)
-                .await;
+                .insert(chunk.cs_id.clone(), full_chunk_message_header.clone());
+
+            if let Some(message) = message_factor.add_chunk(chunk, &full_chunk_message_header) {
+                log::trace!("[MESSAGE DISAPTCH {:?}]", message.message_type);
+                message
+                    .message_type
+                    .dispatch(&message.message_body, self, stream)
+                    .await;
+            }
+
+            // let message_type = full_chunk_message_header.message_type.clone();
+            // self.last_full_chunk_message_header
+            //     .insert(chunk.cs_id, full_chunk_message_header);
+            // // 执行消息
+            // message_type
+            //     .dispatch(&chunk.message_data, self, stream)
+            //     .await;
         }
         Ok(())
     }
@@ -137,6 +177,5 @@ pub async fn accpect_rtmp(mut stream: TcpStream) -> Result<()> {
     RtmpCtx::handle_hand_check(&mut stream).await?;
     let mut rtmp_ctx = RtmpCtx::new();
     rtmp_ctx.handle_receive_chunk(&mut stream).await?;
-
     Ok(())
 }

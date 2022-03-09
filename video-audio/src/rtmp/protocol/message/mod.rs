@@ -82,7 +82,14 @@ impl AsyncWriteByte for Message {
         let payload_length = &self.message_body.len().to_be_bytes()[1..3];
 
         let message_stream_id = &self.message_stream_id.to_be_bytes()[1..3];
+
+        log::trace!("[MESSAGE SEND] -> {:?}", self.message_type);
         // TODO 写入chunk_id
+        // if self.chunk_id < 64 {
+        //     writer.write_u8(self.chunk_id.try_into().unwrap()).await;
+        // } else if self.chunk_id < 320 {
+        //   writer.write
+        // }
         writer.write_u8(message_type).await;
         writer.write_all(payload_length).await;
         writer.write_u32(self.time_stamp).await;
@@ -98,7 +105,12 @@ pub struct MessageFactor {
 }
 
 impl MessageFactor {
-    fn add_chunk(
+    pub fn new() -> Self {
+        Self {
+            chunk_hash_map: HashMap::new(),
+        }
+    }
+    pub fn add_chunk(
         &mut self,
         chunk: Chunk,
         full_chunk_descr: &FullChunkMessageHeader,

@@ -1,11 +1,13 @@
+use std::process::CommandEnvs;
+
 use async_trait::async_trait;
 
 use super::{EventType, MessageType, SetPeerBandWidth, UserControlMessage, WindowAcknowledgement};
 use crate::{
-    rtmp::protocol::{message::Message, RtmpCtx},
-    util::{read_all_amf_value, AsyncWriteByte, AW},
+    rtmp::protocol::{eventbus_map, message::Message, RtmpCtx},
+    util::{read_all_amf_value, AsyncWriteByte, EventBus, AW},
 };
-use amf::amf0;
+use amf::{amf0, Pair};
 
 trait FromAMF0Data {
     fn from_amf0_data(data: &[u8]) -> Option<Vec<amf::amf0::Value>>;
@@ -40,7 +42,8 @@ impl CommandMessageAMF020 {
     ) -> anyhow::Result<()>
     where
         Writer: AW,
-    {
+    { 
+        
         let command = CommandMessageAMF020::from_amf0_data(data);
         match command {
             Some(command) => {
@@ -51,11 +54,17 @@ impl CommandMessageAMF020 {
                 let command = values[0].try_as_str().unwrap();
                 match command {
                     "connect" => {
-                        Connect::excute_mut(ctx, writer).await;
-                        Connect::response(ctx, writer).await;
+                        log::trace!("[CONNECT COMMAND]");
+                        Connect::excute_mut(ctx, &values, writer).await;
+                        Connect::response(ctx, &values, writer).await;
                     }
-                    "createStream" => {}
-                    "publish" => {}
+                    "createStream" => {
+                        log::trace!("[CREATESTEAM COMMAND]");
+                        CreateStream::response(ctx, &values, writer).await;
+                    }
+                    "publish" => {
+                        log::trace!("[PUBLISH COMMAND]");
+                    }
                     "play" => {}
                     _ => {}
                 };
@@ -122,14 +131,14 @@ pub trait CommandExcute {
 
 #[async_trait]
 pub trait CommandExcuteMut {
-    async fn excute_mut<Writer>(ctx: &mut RtmpCtx, writer: &mut Writer)
+    async fn excute_mut<Writer>(ctx: &mut RtmpCtx, values: &Vec<amf0::Value>, writer: &mut Writer)
     where
         Writer: AW;
 }
 
 #[async_trait]
 pub trait CommandResponse {
-    async fn response<Writer>(ctx: &mut RtmpCtx, writer: &mut Writer)
+    async fn response<Writer>(ctx: &mut RtmpCtx, values: &Vec<amf0::Value>, writer: &mut Writer)
     where
         Writer: AW;
 }
@@ -139,19 +148,19 @@ pub struct Connect;
 
 #[async_trait]
 impl CommandExcuteMut for Connect {
-    async fn excute_mut<Writer>(ctx: &mut RtmpCtx, writer: &mut Writer)
+    async fn excute_mut<Writer>(ctx: &mut RtmpCtx, _values: &Vec<amf0::Value>, writer: &mut Writer)
     where
         Writer: AW,
     {
         WindowAcknowledgement::send(4096, ctx, writer).await;
         SetPeerBandWidth::send(4096, super::LimitType::Hard, ctx, writer).await;
-        UserControlMessage::send(EventType::STREAM_BEGIN, writer);
+        UserControlMessage::send(EventType::STREAM_BEGIN, writer).await;
     }
 }
 
 #[async_trait]
 impl CommandResponse for Connect {
-    async fn response<Writer>(ctx: &mut RtmpCtx, writer: &mut Writer)
+    async fn response<Writer>(ctx: &mut RtmpCtx, values: &Vec<amf0::Value>, writer: &mut Writer)
     where
         Writer: AW,
     {
@@ -199,7 +208,70 @@ impl CommandResponse for Connect {
 #[derive(Debug, Clone)]
 pub struct CreateStream;
 
+#[async_trait]
+impl CommandResponse for CreateStream {
+    async fn response<Writer>(ctx: &mut RtmpCtx, values: &Vec<amf0::Value>, writer: &mut Writer)
+    where
+        Writer: AW,
+    {
+        let mut amf_datas = vec![];
+        let prev_command_number = (&values[1]).clone();
+        amf_datas.push(amf0::Value::String("_result".to_string()));
+        amf_datas.push(prev_command_number);
+        amf_datas.push(amf0::Value::Null);
+        amf_datas.push(amf0::Value::Number(9.0));
+        CommandMessageAMF020::send(Command::CREATE_STREAM(CreateStream), &amf_datas, writer).await;
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Publish;
+
+#[async_trait]
+impl CommandExcuteMut for Publish {
+    async fn excute_mut<Writer>(ctx: &mut RtmpCtx, values: &Vec<amf0::Value>, writer: &mut Writer)
+    where
+        Writer: AW,
+    {
+        let stream_name = values[3].try_as_str().unwrap_or_default().to_string();
+        ctx.stream_name = Some(stream_name.clone());
+        ctx.is_publisher = true;
+        eventbus_map().insert(
+            stream_name.clone(),
+            EventBus::new_with_label(stream_name.clone()),
+        );
+    }
+}
+
+#[async_trait]
+impl CommandResponse for Publish {
+    async fn response<Writer>(_ctx: &mut RtmpCtx, _values: &Vec<amf0::Value>, writer: &mut Writer)
+    where
+        Writer: AW,
+    {
+        let mut amf_datas = vec![];
+        amf_datas.push(amf0::Value::String("onStatus".to_string()));
+        amf_datas.push(amf0::Value::Number(1.0));
+        amf_datas.push(amf0::Value::Null);
+        amf_datas.push(amf0::Value::Object {
+            class_name: None,
+            entries: vec![
+                Pair {
+                    key: "level".to_owned(),
+                    value: amf::amf0::Value::String("status".to_owned()),
+                },
+                Pair {
+                    key: "code".to_owned(),
+                    value: amf::amf0::Value::String("NetStream.Publish.Start".to_owned()),
+                },
+                Pair {
+                    key: "description".to_owned(),
+                    value: amf::amf0::Value::String("Start publishing".to_owned()),
+                },
+            ],
+        });
+        CommandMessageAMF020::send(Command::PUBLISH(Publish), &amf_datas, writer).await
+    }
+}
 
 pub struct Play;
