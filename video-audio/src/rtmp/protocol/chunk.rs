@@ -32,6 +32,7 @@ impl Chunk {
         let one = byte.get_u8();
 
         let fmt = one >> 6;
+        log::info!("[RECEIVE CHUNK fmt] {}", fmt);
         let mut cs_id = (one << 2 >> 2) as u32;
         if cs_id == 0 {
             // 如果低6位的字节为0 ， 则再读取一个字节 cs_id = 第二个字节的值 + 64;
@@ -190,6 +191,7 @@ impl AsyncFrom for ChunkMessageHeader11 {
             BytesMut::from_iter([0u8, reminder, r_message_length[0], r_message_length[1]].iter());
         let message_length = rbytes.get_u32();
         let message_type_id = bytes.get_u8();
+
         // TODO Message Type
         let message_type = message_type_id.into();
         let mut message_stream_id_bytes = bytes.get(0..3).unwrap().to_vec();
@@ -221,10 +223,10 @@ impl AsyncFrom for ChunkMessageHeader7 {
         let mut b4 = async_read_4_byte(reader).await;
         let b4 = b4.get_u32();
         let time_stamp_delta = b4 >> 8;
-        let message_length_header = b4 << 24;
+        let message_length_header = b4 << 24 >> 24;
         let message_reminder = async_read_2_byte(reader).await.get_u16();
-        let message_length = message_length_header << 16 + message_reminder;
-
+        let message_length =
+            (((message_length_header as u64) << 16) + message_reminder as u64) as u32;
         let message_type_id = async_read_1_byte(reader).await.get_u8();
         let message_type = message_type_id.into();
         Self {

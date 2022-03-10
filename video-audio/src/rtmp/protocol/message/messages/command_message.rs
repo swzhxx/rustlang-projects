@@ -2,7 +2,10 @@ use std::process::CommandEnvs;
 
 use async_trait::async_trait;
 
-use super::{EventType, MessageType, SetPeerBandWidth, UserControlMessage, WindowAcknowledgement};
+use super::{
+    Acknowledgement, EventType, MessageType, SetChunkSize, SetPeerBandWidth, UserControlMessage,
+    WindowAcknowledgement,
+};
 use crate::{
     rtmp::protocol::{eventbus_map, message::Message, RtmpCtx},
     util::{read_all_amf_value, AsyncWriteByte, EventBus, AW},
@@ -43,9 +46,8 @@ impl CommandMessageAMF020 {
     where
         Writer: AW,
     {
-        log::trace!("[COMMAND MESSAGE AMF020 EXCUTE]");
         let command = CommandMessageAMF020::from_amf0_data(data);
-
+        log::trace!("[COMMAND MESSAGE AMF020 EXCUTE {:?}]", command);
         match command {
             Some(command) => {
                 let values = command;
@@ -108,7 +110,7 @@ impl CommandMessageAMF020 {
             message_stream_id,
             message_body,
         );
-        log::trace!("[COMMAND MESSAGE SEND ] -> {:?}", command_type);
+
         message.async_write_byte(writer).await;
     }
 }
@@ -165,7 +167,9 @@ impl CommandExcuteMut for Connect {
         Writer: AW,
     {
         WindowAcknowledgement::send(4096, ctx, writer).await;
-        SetPeerBandWidth::send(4096, super::LimitType::Hard, ctx, writer).await;
+        SetPeerBandWidth::send(4096, super::LimitType::Soft, ctx, writer).await;
+        ctx.chunk_size = 4096;
+        SetChunkSize::send(4096, ctx, writer).await;
         // UserControlMessage::send(EventType::STREAM_BEGIN, writer).await;
     }
 }

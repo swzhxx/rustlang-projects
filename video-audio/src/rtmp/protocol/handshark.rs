@@ -39,6 +39,7 @@ impl AsyncWriteByte for HandShark0 {
         Writer: AW,
     {
         writer.write_u8(self.version).await;
+        writer.flush().await;
     }
 }
 
@@ -88,6 +89,7 @@ impl AsyncWriteByte for HandShark1 {
         writer.write_u32(self.time).await;
         writer.write_u32(self.zero).await;
         writer.write_all(&self.random_data).await;
+        writer.flush().await;
     }
 }
 
@@ -126,6 +128,7 @@ impl AsyncWriteByte for HandShark2 {
         writer.write_u32(self.time1).await;
         writer.write_u32(self.time2).await;
         writer.write_all(&self.random_echo).await;
+        writer.flush().await;
     }
 }
 

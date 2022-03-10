@@ -5,7 +5,7 @@ use super::protocol::accpect_rtmp;
 
 pub fn start_server() -> JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async {
-        let str = "127.0.0.1:1935";
+        let str = "0.0.0.0:1935";
         let listener = TcpListener::bind(str).await?;
         log::info!("[START RTMP SERVER {}]", str);
         loop {

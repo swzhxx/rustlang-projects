@@ -3,6 +3,7 @@ mod messages;
 use std::collections::HashMap;
 
 use async_trait::async_trait;
+use bytes::{BufMut, BytesMut};
 pub use messages::*;
 use tokio::io::AsyncWriteExt;
 
@@ -79,31 +80,34 @@ impl AsyncWriteByte for Message {
         Writer: AW,
     {
         let message_type: u8 = self.message_type.clone().into();
-        let payload_length = &self.message_body.len().to_be_bytes()[1..3];
-
-        let message_stream_id = &self.message_stream_id.to_be_bytes()[1..3];
+        let payload_length = &(self.message_body.len() as u32).to_be_bytes()[1..4];
 
         log::trace!("[MESSAGE SEND] -> {:?}", self.message_type);
+        let mut bytes = BytesMut::new();
         /* todo  这里使用一个简单的实现，
         本来应该需要更具 最大chunk_size 切割message_body,处理对应的fmt组装成Chunk发送。
         这里先简单实现*/
         if self.chunk_id < 64 {
-            writer.write_u8(self.chunk_id.try_into().unwrap()).await;
+            bytes.put_u8(self.chunk_id.try_into().unwrap())
         } else if self.chunk_id < 320 {
             let chunk_id = self.chunk_id - 64;
-            writer.write_u8(0);
-            writer.write_u8(chunk_id as u8);
+            bytes.put_u8(0);
+            bytes.put_u8(chunk_id as u8);
         } else {
             let chunk_id = self.chunk_id - 64;
-            writer.write_u8(63);
-            writer.write_u16_le(chunk_id as u16);
+            bytes.put_u8(63);
+            bytes.put_u16_le(chunk_id as u16);
         }
-        writer.write_u8(message_type).await;
-        writer.write_all(payload_length).await;
-        writer.write_u32(self.time_stamp).await;
-        writer.write_all(message_stream_id).await;
+        bytes.put_slice(&self.time_stamp.to_be_bytes()[1..4]);
+
+        bytes.put_slice(&payload_length[..]);
+        bytes.put_u8(message_type);
+        bytes.put_u32(self.message_stream_id);
         // 写入Payload
-        writer.write_all(&self.message_body).await;
+        bytes.put_slice(&self.message_body[..]);
+
+        writer.write_all(&bytes[..]).await.unwrap();
+        writer.flush().await.unwrap();
     }
 }
 

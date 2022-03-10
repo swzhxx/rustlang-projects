@@ -141,10 +141,7 @@ impl RtmpCtx {
                 let mut effect_reader = AsyncReaderEffect::new(stream);
                 let result = Chunk::async_read_chunk(&mut effect_reader, self).await;
                 self.reve_bytes += effect_reader.get_readed_bytes_num();
-                log::trace!("[RECEIVED CHUNK ID] -> {:?}", result.0.cs_id);
-                log::trace!("[RECEIVED BYTES TOTAL] -> {}", self.reve_bytes);
-                log::trace!("[RECEIVED MESSAGE TYPE] -> {:?}", result.1.message_type);
-
+                log::info!("[RECEIVED MESSAGE TYPE] -> {:?}", result.1.message_type);
                 result
             };
             self.last_full_chunk_message_header

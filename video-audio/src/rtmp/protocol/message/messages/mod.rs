@@ -110,7 +110,7 @@ impl WindowAcknowledgement {
         // TODO ,在接收到对方的size后 我还需要做什么?
 
         // 回应确认消息
-        Acknowledgement::send(ctx, writer);
+        Acknowledgement::send(ctx, writer).await;
     }
 
     async fn send<Writer>(ack_window_size: u32, ctx: &mut RtmpCtx, writer: &mut Writer)
@@ -286,7 +286,10 @@ impl From<u8> for MessageType {
             15 => Self::DATA_MESSAGE_15(DataMessage15),
             19 => Self::SHARED_OBJECT_MESSAGE_19(SharedObjectMessage19),
             16 => Self::SHARED_OBJECT_MESSAGE_16(SharedObjectMessage16),
-            _ => todo!(),
+            _ => {
+                log::error!("[From MessageType {}]", value);
+                todo!()
+            }
         }
     }
 }
