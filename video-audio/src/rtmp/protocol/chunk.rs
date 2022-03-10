@@ -30,10 +30,9 @@ impl Chunk {
     {
         let mut byte = async_read_1_byte(reader).await;
         let one = byte.get_u8();
-        log::trace!("[chunk 1 byte] {}", one);
+
         let fmt = one >> 6;
         let mut cs_id = (one << 2 >> 2) as u32;
-
         if cs_id == 0 {
             // 如果低6位的字节为0 ， 则再读取一个字节 cs_id = 第二个字节的值 + 64;
             let mut byts = async_read_1_byte(reader).await;
@@ -46,7 +45,6 @@ impl Chunk {
             let num_2 = bytes.get_u8();
             cs_id = num_2 as u32 * 255 + num_1 as u32 + 64;
         }
-        log::trace!("[cs_id] {}", cs_id);
         let chunk_message_header = match fmt {
             0 => ChunkMessageHeader::ChunkMessageHeader11(
                 ChunkMessageHeader11::async_from(reader).await,

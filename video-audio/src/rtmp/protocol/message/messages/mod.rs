@@ -282,6 +282,10 @@ impl From<u8> for MessageType {
             6 => Self::SET_PEER_BANDWIDTH(SetPeerBandWidth),
             20 => Self::COMMAND_MESSAGE_AMF0_20(CommandMessageAMF020),
             17 => Self::COMMAND_MESSAGE_AMF3_17(CommandMessageAMF317),
+            18 => Self::DATA_MESSAGE_18(DataMessage18),
+            15 => Self::DATA_MESSAGE_15(DataMessage15),
+            19 => Self::SHARED_OBJECT_MESSAGE_19(SharedObjectMessage19),
+            16 => Self::SHARED_OBJECT_MESSAGE_16(SharedObjectMessage16),
             _ => todo!(),
         }
     }
@@ -297,6 +301,13 @@ impl Into<u8> for MessageType {
             MessageType::WINDOW_ACKNOWLEDGEMENT(_) => 5,
             MessageType::SET_PEER_BANDWIDTH(_) => 6,
             MessageType::USER_CONTROL_MESSAGE(_) => 4,
+            MessageType::COMMAND_MESSAGE_AMF0_20(_) => 20,
+            MessageType::COMMAND_MESSAGE_AMF3_17(_) => 17,
+            MessageType::DATA_MESSAGE_18(_) => 18,
+            MessageType::DATA_MESSAGE_15(_) => 15,
+            MessageType::SHARED_OBJECT_MESSAGE_19(_) => 19,
+            MessageType::SHARED_OBJECT_MESSAGE_16(_) => 16,
+
             _ => todo!(),
         }
     }

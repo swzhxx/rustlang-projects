@@ -29,17 +29,7 @@ impl UserControlMessage {
             0,
             message_body,
         );
-        // let mut message_body = Vec::from_iter(event_type_num.to_be_bytes().into_iter());
-        // amf_data.iter().for_each(|data| {
-        //     data.write_to(&mut message_body);
-        // });
-        // let message = Message::new(
-        //     cs_id,
-        //     MessageType::USER_CONTROL_MESSAGE(UserControlMessage),
-        //     0,
-        //     message_stream_id,
-        //     message_body,
-        // );
+        
         message.async_write_byte(writer).await;
     }
 }

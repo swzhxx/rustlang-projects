@@ -42,9 +42,10 @@ impl CommandMessageAMF020 {
     ) -> anyhow::Result<()>
     where
         Writer: AW,
-    { 
-        
+    {
+        log::trace!("[COMMAND MESSAGE AMF020 EXCUTE]");
         let command = CommandMessageAMF020::from_amf0_data(data);
+
         match command {
             Some(command) => {
                 let values = command;
@@ -64,14 +65,24 @@ impl CommandMessageAMF020 {
                     }
                     "publish" => {
                         log::trace!("[PUBLISH COMMAND]");
+                        Publish::excute_mut(ctx, &values, writer).await;
+                        Publish::response(ctx, &values, writer).await;
                     }
-                    "play" => {}
-                    _ => {}
+                    "play" => {
+                        log::trace!("[PLAY COMMAND]");
+                        todo!()
+                    }
+                    _ => {
+                        log::error!("[COMMAND MESSAGE AMF0 UNKNOWN COMMAND] -> {:?}", command);
+                    }
                 };
 
                 Ok(())
             }
-            None => Err(anyhow::anyhow!("[AMF0CommandMessage] expect AMF0 data"))?,
+            None => {
+                log::error!("[AMF0CommandMessage] expect AMF0 data");
+                Err(anyhow::anyhow!("[AMF0CommandMessage] expect AMF0 data"))?
+            }
         }
     }
 
@@ -84,7 +95,7 @@ impl CommandMessageAMF020 {
 
         let mut message_body = vec![];
         let command_type: amf0::Value = (&command_type).into();
-
+        // command_type.write_to(&mut message_body);
         for i in 0..data.len() {
             let data = &data[i];
             data.write_to(&mut message_body);
@@ -92,11 +103,12 @@ impl CommandMessageAMF020 {
 
         let message = Message::new(
             cs_id,
-            MessageType::USER_CONTROL_MESSAGE(UserControlMessage),
+            MessageType::COMMAND_MESSAGE_AMF0_20(CommandMessageAMF020),
             0,
             message_stream_id,
             message_body,
         );
+        log::trace!("[COMMAND MESSAGE SEND ] -> {:?}", command_type);
         message.async_write_byte(writer).await;
     }
 }
@@ -154,7 +166,7 @@ impl CommandExcuteMut for Connect {
     {
         WindowAcknowledgement::send(4096, ctx, writer).await;
         SetPeerBandWidth::send(4096, super::LimitType::Hard, ctx, writer).await;
-        UserControlMessage::send(EventType::STREAM_BEGIN, writer).await;
+        // UserControlMessage::send(EventType::STREAM_BEGIN, writer).await;
     }
 }
 

@@ -39,8 +39,8 @@ impl Message {
         }
     }
     fn from_chunks(mut chunks: Vec<Chunk>, full_chunk_descr: &FullChunkMessageHeader) -> Self {
+        log::trace!("[MESSAGE FROM CHUNKS] -> {:?}", chunks.len());
         let message_type = full_chunk_descr.message_type.clone();
-        let chunk_id = 0;
         let message_stream_id = full_chunk_descr.msg_stream_id;
         let time_stamp = full_chunk_descr.time_stamp;
         let chunk_id = match chunks.get(0) {
@@ -84,12 +84,20 @@ impl AsyncWriteByte for Message {
         let message_stream_id = &self.message_stream_id.to_be_bytes()[1..3];
 
         log::trace!("[MESSAGE SEND] -> {:?}", self.message_type);
-        // TODO 写入chunk_id
-        // if self.chunk_id < 64 {
-        //     writer.write_u8(self.chunk_id.try_into().unwrap()).await;
-        // } else if self.chunk_id < 320 {
-        //   writer.write
-        // }
+        /* todo  这里使用一个简单的实现，
+        本来应该需要更具 最大chunk_size 切割message_body,处理对应的fmt组装成Chunk发送。
+        这里先简单实现*/
+        if self.chunk_id < 64 {
+            writer.write_u8(self.chunk_id.try_into().unwrap()).await;
+        } else if self.chunk_id < 320 {
+            let chunk_id = self.chunk_id - 64;
+            writer.write_u8(0);
+            writer.write_u8(chunk_id as u8);
+        } else {
+            let chunk_id = self.chunk_id - 64;
+            writer.write_u8(63);
+            writer.write_u16_le(chunk_id as u16);
+        }
         writer.write_u8(message_type).await;
         writer.write_all(payload_length).await;
         writer.write_u32(self.time_stamp).await;
@@ -121,6 +129,7 @@ impl MessageFactor {
             message_length == data.len()
         };
         if is_enough {
+            log::trace!("[MESSAGE is_enough]");
             // todo 转化为Message
             return Some(Message::from_chunks(vec![chunk], full_chunk_descr));
         } else {
@@ -131,8 +140,10 @@ impl MessageFactor {
                     let current_len = chunks.iter().fold(chunk.message_data.len(), |acc, chunk| {
                         return acc + chunk.message_data.len();
                     });
+
                     if current_len == full_chunk_descr.message_length as usize {
                         // todo 转化为message
+                        chunks.push(chunk);
                         if let Some(chunks) = self.chunk_hash_map.remove(&cs_id) {
                             let message = Message::from_chunks(chunks, full_chunk_descr);
                             return Some(message);
