@@ -1,5 +1,6 @@
 use std::{collections::HashMap, pin::Pin};
 
+use amf::amf0;
 use anyhow::Result;
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
@@ -42,8 +43,8 @@ pub fn audio_header_map() -> &'static DashMap<String, Message> {
     INSTANCE.get_or_init(|| DashMap::new())
 }
 
-pub fn meta_data_map() -> &'static DashMap<String, Message> {
-    static INSTANCE: OnceCell<DashMap<String, Message>> = OnceCell::new();
+pub fn meta_data_map() -> &'static DashMap<String, RtmpMetaData> {
+    static INSTANCE: OnceCell<DashMap<String, RtmpMetaData>> = OnceCell::new();
     INSTANCE.get_or_init(|| DashMap::new())
 }
 
@@ -56,6 +57,61 @@ pub struct RtmpCtx {
     abort_chunk_id: Option<u32>,
     stream_name: Option<String>,
     is_publisher: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct RtmpMetaData {
+    pub width: f64,
+    pub height: f64,
+    pub video_codec_id: String,
+    pub video_data_rate: f64,
+    pub audio_codec_id: String,
+    pub audio_data_rate: f64,
+    pub frame_rate: f64,
+    pub duration: f64,
+    pub begin_time: i64,
+}
+
+impl TryFrom<&amf0::Value> for RtmpMetaData {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &amf0::Value) -> Result<Self, Self::Error> {
+        let mut meta_data = RtmpMetaData::default();
+        if let amf0::Value::EcmaArray { entries } = value {
+            for item in entries {
+                match item.key.as_ref() {
+                    "duration" => {
+                        meta_data.duration = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "width" => {
+                        meta_data.width = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "height" => {
+                        meta_data.height = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "videocodecid" => {
+                        meta_data.video_codec_id =
+                            item.value.try_as_str().unwrap_or_default().to_owned();
+                    }
+                    "videorate" => {
+                        meta_data.video_data_rate = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "framerate" => {
+                        meta_data.video_data_rate = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "audiocodeid" => {
+                        meta_data.audio_codec_id =
+                            item.value.try_as_str().unwrap_or_default().to_owned();
+                    }
+                    "audiodatarate" => {
+                        meta_data.audio_data_rate = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(meta_data)
+    }
 }
 
 impl RtmpCtx {
@@ -142,6 +198,12 @@ impl RtmpCtx {
                 let result = Chunk::async_read_chunk(&mut effect_reader, self).await;
                 self.reve_bytes += effect_reader.get_readed_bytes_num();
                 log::info!("[RECEIVED MESSAGE TYPE] -> {:?}", result.1.message_type);
+                log::info!("[RECEIVED MESSAGE CHUNK_ID] -> {:?}", result.0.cs_id);
+                log::info!("[RECEIVED MESSAGE LENGTH] -> {:?}", result.1.message_length);
+                log::info!(
+                    "[RECEIVED MESSAGE CHUNK LENGTH] -> {:?}",
+                    &result.0.message_data.len()
+                );
                 result
             };
             self.last_full_chunk_message_header
@@ -149,10 +211,7 @@ impl RtmpCtx {
 
             if let Some(message) = message_factor.add_chunk(chunk, &full_chunk_message_header) {
                 log::trace!("[MESSAGE DISAPTCH {:?}]", message.message_type);
-                message
-                    .message_type
-                    .dispatch(&message.message_body, self, stream)
-                    .await;
+                message.dispatch(self, stream).await;
             }
         }
         Ok(())

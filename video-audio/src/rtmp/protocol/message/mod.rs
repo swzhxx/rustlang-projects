@@ -7,9 +7,12 @@ use bytes::{BufMut, BytesMut};
 pub use messages::*;
 use tokio::io::AsyncWriteExt;
 
-use crate::util::{AsyncWriteByte, AW};
+use crate::util::{AsyncWriteByte, AR, AW};
 
-use super::chunk::{Chunk, FullChunkMessageHeader};
+use super::{
+    chunk::{Chunk, FullChunkMessageHeader},
+    RtmpCtx,
+};
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -70,6 +73,41 @@ impl Message {
 impl Message {
     pub fn get_payload_length(&self) -> u32 {
         self.payload_length
+    }
+
+    pub async fn dispatch<'a, T>(&self, ctx: &'a mut RtmpCtx, stream: &mut T)
+    where
+        T: AR + AW,
+    {
+        let chunk_data = &self.message_body[..];
+        match &self.message_type {
+            MessageType::UNKOWN => todo!(),
+            MessageType::SET_CHUNK_SIZE(message) => {
+                SetChunkSize::excute(chunk_data, ctx).await;
+            }
+            MessageType::ABORT_MESSAGE(_) => {
+                AbortMessage::excute(chunk_data, ctx).await;
+            }
+            MessageType::ACKNOWLEDGEMENT(_) => {
+                Acknowledgement::excute(chunk_data, ctx, stream).await;
+            }
+            MessageType::WINDOW_ACKNOWLEDGEMENT(_) => {
+                WindowAcknowledgement::excute(chunk_data, ctx, stream).await;
+            }
+            MessageType::SET_PEER_BANDWIDTH(_) => {
+                SetPeerBandWidth::excute(chunk_data, ctx, stream).await;
+            }
+            MessageType::COMMAND_MESSAGE_AMF0_20(_) => {
+                CommandMessageAMF020::excute(chunk_data, ctx, stream).await;
+            }
+            MessageType::DATA_MESSAGE_18(_) => {
+                DataMessage18::excute(chunk_data, ctx, stream).await;
+            }
+            MessageType::AUDIO_MESSAGE(_) => {
+                AudioMessage::excute(chunk_data, ctx, stream, self).await;
+            }
+            _ => todo!(),
+        }
     }
 }
 

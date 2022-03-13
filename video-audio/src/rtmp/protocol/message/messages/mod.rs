@@ -1,6 +1,10 @@
+use std::clone;
+
 use crate::{
-    rtmp::protocol::RtmpCtx,
-    util::{async_read_1_byte, AsyncFrom, AsyncWriteByte, AR, AW},
+    rtmp::protocol::{
+        audio_header_map, eventbus_map, meta_data_map, video_header_map, RtmpCtx, RtmpMetaData,
+    },
+    util::{async_read_1_byte, read_all_amf_value, AsyncFrom, AsyncWriteByte, AR, AW},
 };
 use async_trait::async_trait;
 use bytes::{buf::Limit, Buf, BytesMut};
@@ -25,7 +29,7 @@ pub struct UnknownMessage;
 #[derive(Debug, Clone)]
 pub struct SetChunkSize;
 impl SetChunkSize {
-    async fn excute(chunk_data: &[u8], ctx: &mut RtmpCtx) {
+    pub async fn excute(chunk_data: &[u8], ctx: &mut RtmpCtx) {
         let mut bytes = BytesMut::from_iter(chunk_data.iter());
         let chunk_size = bytes.get_u32();
         let chunk_size = chunk_size << 1 >> 1;
@@ -39,7 +43,7 @@ impl SetChunkSize {
         ctx.chunk_size = chunk_size
     }
 
-    async fn send<Writer>(chunk_size: u32, ctx: &mut RtmpCtx, writer: &mut Writer)
+    pub async fn send<Writer>(chunk_size: u32, ctx: &mut RtmpCtx, writer: &mut Writer)
     where
         Writer: AW,
     {
@@ -61,7 +65,7 @@ impl SetChunkSize {
 #[derive(Debug, Clone)]
 pub struct AbortMessage;
 impl AbortMessage {
-    async fn excute(chunk_data: &[u8], ctx: &mut RtmpCtx) {
+    pub async fn excute(chunk_data: &[u8], ctx: &mut RtmpCtx) {
         let mut bytes = BytesMut::from_iter(chunk_data.iter());
         let abort_id = bytes.get_u32();
         ctx.abort_chunk_id = Some(abort_id);
@@ -72,7 +76,7 @@ impl AbortMessage {
 #[derive(Debug, Clone)]
 pub struct Acknowledgement;
 impl Acknowledgement {
-    async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
+    pub async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
     where
         Writer: AW,
     {
@@ -100,7 +104,7 @@ impl Acknowledgement {
 #[derive(Debug, Clone)]
 pub struct WindowAcknowledgement;
 impl WindowAcknowledgement {
-    async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
+    pub async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
     where
         Writer: AW,
     {
@@ -113,7 +117,7 @@ impl WindowAcknowledgement {
         Acknowledgement::send(ctx, writer).await;
     }
 
-    async fn send<Writer>(ack_window_size: u32, ctx: &mut RtmpCtx, writer: &mut Writer)
+    pub async fn send<Writer>(ack_window_size: u32, ctx: &mut RtmpCtx, writer: &mut Writer)
     where
         Writer: AW,
     {
@@ -133,7 +137,7 @@ impl WindowAcknowledgement {
 /// 设置对等带宽
 pub struct SetPeerBandWidth;
 impl SetPeerBandWidth {
-    async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
+    pub async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
     where
         Writer: AW,
     {
@@ -145,7 +149,7 @@ impl SetPeerBandWidth {
         // TODO , 我还需要做什么?
     }
 
-    async fn send<Writer>(
+    pub async fn send<Writer>(
         ack_window_size: u32,
         limit_type: LimitType,
         _ctx: &mut RtmpCtx,
@@ -224,6 +228,24 @@ impl AsyncFrom for LimitType {
 #[derive(Debug, Clone)]
 pub struct DataMessage18;
 
+impl DataMessage18 {
+    pub async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
+    where
+        Writer: AW,
+    {
+        let values = read_all_amf_value(chunk_data);
+        if let Some(values) = values {
+            let command = (&values[0]).try_as_str().unwrap();
+            if command == "@setDataFrame" {
+                if let Ok(meta_data) = RtmpMetaData::try_from(&values[2]) {
+                    meta_data_map().insert(ctx.stream_name.as_ref().unwrap().clone(), meta_data);
+                }
+            }
+        } else {
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DataMessage15;
 
@@ -243,8 +265,50 @@ pub struct SharedObjectMessage16;
 #[derive(Debug, Clone)]
 pub struct AudioMessage;
 
+impl AudioMessage {
+    pub async fn excute<Writer>(
+        chunk_data: &[u8],
+        ctx: &mut RtmpCtx,
+        _writer: &mut Writer,
+        message: &Message,
+    ) where
+        Writer: AW,
+    {
+        audio_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+        log::trace!(
+            "[REIVED AUDIO MESSAGE] -> AUDIO DATA LEN {}",
+            chunk_data.len()
+        );
+        // todo 将音频文件保存在本地,为后续hlv做准备
+        if let Some(eventbus) = eventbus_map().get(ctx.stream_name.as_ref().unwrap()) {
+            eventbus.publish(message.clone()).await
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct VideoMessage;
+
+impl VideoMessage {
+    pub async fn excute<Writer>(
+        chunk_data: &[u8],
+        ctx: RtmpCtx,
+        _writer: &mut Writer,
+        message: &Message,
+    ) where
+        Writer: AW,
+    {
+        video_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+        log::trace!(
+            "[REIVED AUDIO MESSAGE] -> VIDEO DATA LEN {}",
+            chunk_data.len()
+        );
+        // todo 将视频文件保存在本地,为后续hlv做准备
+        if let Some(eventbus) = eventbus_map().get(ctx.stream_name.as_ref().unwrap()) {
+            eventbus.publish(message.clone()).await
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct AggregrateMessage;
@@ -262,6 +326,8 @@ pub enum MessageType {
     ABORT_MESSAGE(AbortMessage),
     ACKNOWLEDGEMENT(Acknowledgement),
     WINDOW_ACKNOWLEDGEMENT(WindowAcknowledgement),
+    AUDIO_MESSAGE(AudioMessage),
+    VIDEO_MESSAGE(VideoMessage),
     SET_PEER_BANDWIDTH(SetPeerBandWidth),
     USER_CONTROL_MESSAGE(UserControlMessage),
     COMMAND_MESSAGE_AMF0_20(CommandMessageAMF020),
@@ -280,6 +346,8 @@ impl From<u8> for MessageType {
             4 => Self::USER_CONTROL_MESSAGE(UserControlMessage),
             5 => Self::WINDOW_ACKNOWLEDGEMENT(WindowAcknowledgement),
             6 => Self::SET_PEER_BANDWIDTH(SetPeerBandWidth),
+            8 => Self::AUDIO_MESSAGE(AudioMessage),
+            9 => Self::VIDEO_MESSAGE(VideoMessage),
             20 => Self::COMMAND_MESSAGE_AMF0_20(CommandMessageAMF020),
             17 => Self::COMMAND_MESSAGE_AMF3_17(CommandMessageAMF317),
             18 => Self::DATA_MESSAGE_18(DataMessage18),
@@ -304,6 +372,8 @@ impl Into<u8> for MessageType {
             MessageType::WINDOW_ACKNOWLEDGEMENT(_) => 5,
             MessageType::SET_PEER_BANDWIDTH(_) => 6,
             MessageType::USER_CONTROL_MESSAGE(_) => 4,
+            MessageType::AUDIO_MESSAGE(_) => 8,
+            MessageType::VIDEO_MESSAGE(_) => 9,
             MessageType::COMMAND_MESSAGE_AMF0_20(_) => 20,
             MessageType::COMMAND_MESSAGE_AMF3_17(_) => 17,
             MessageType::DATA_MESSAGE_18(_) => 18,
@@ -311,36 +381,6 @@ impl Into<u8> for MessageType {
             MessageType::SHARED_OBJECT_MESSAGE_19(_) => 19,
             MessageType::SHARED_OBJECT_MESSAGE_16(_) => 16,
 
-            _ => todo!(),
-        }
-    }
-}
-
-impl MessageType {
-    pub async fn dispatch<'a, T>(&self, chunk_data: &'a [u8], ctx: &'a mut RtmpCtx, stream: &mut T)
-    where
-        T: AR + AW,
-    {
-        match self {
-            MessageType::UNKOWN => todo!(),
-            MessageType::SET_CHUNK_SIZE(message) => {
-                SetChunkSize::excute(chunk_data, ctx).await;
-            }
-            MessageType::ABORT_MESSAGE(_) => {
-                AbortMessage::excute(chunk_data, ctx).await;
-            }
-            MessageType::ACKNOWLEDGEMENT(_) => {
-                Acknowledgement::excute(chunk_data, ctx, stream).await;
-            }
-            MessageType::WINDOW_ACKNOWLEDGEMENT(_) => {
-                WindowAcknowledgement::excute(chunk_data, ctx, stream).await;
-            }
-            MessageType::SET_PEER_BANDWIDTH(_) => {
-                SetPeerBandWidth::excute(chunk_data, ctx, stream).await;
-            }
-            MessageType::COMMAND_MESSAGE_AMF0_20(_) => {
-                CommandMessageAMF020::excute(chunk_data, ctx, stream).await;
-            }
             _ => todo!(),
         }
     }
