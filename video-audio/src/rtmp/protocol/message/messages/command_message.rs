@@ -166,10 +166,10 @@ impl CommandExcuteMut for Connect {
     where
         Writer: AW,
     {
-        WindowAcknowledgement::send(4096, ctx, writer).await;
-        SetPeerBandWidth::send(4096, super::LimitType::Soft, ctx, writer).await;
-        ctx.chunk_size = 4096;
-        SetChunkSize::send(4096, ctx, writer).await;
+        WindowAcknowledgement::send(50000, ctx, writer).await;
+        SetPeerBandWidth::send(1418, super::LimitType::Soft, ctx, writer).await;
+        ctx.chunk_size = 1418;
+        SetChunkSize::send(1418, ctx, writer).await;
         // UserControlMessage::send(EventType::STREAM_BEGIN, writer).await;
     }
 }

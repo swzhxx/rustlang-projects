@@ -292,7 +292,7 @@ pub struct VideoMessage;
 impl VideoMessage {
     pub async fn excute<Writer>(
         chunk_data: &[u8],
-        ctx: RtmpCtx,
+        ctx: &mut RtmpCtx,
         _writer: &mut Writer,
         message: &Message,
     ) where
@@ -300,7 +300,7 @@ impl VideoMessage {
     {
         video_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
         log::trace!(
-            "[REIVED AUDIO MESSAGE] -> VIDEO DATA LEN {}",
+            "[REIVED VIDEO MESSAGE] -> VIDEO DATA LEN {}",
             chunk_data.len()
         );
         // todo 将视频文件保存在本地,为后续hlv做准备
@@ -343,6 +343,7 @@ impl From<u8> for MessageType {
         match value {
             1 => Self::SET_CHUNK_SIZE(SetChunkSize),
             2 => Self::ABORT_MESSAGE(AbortMessage),
+            3 => Self::ACKNOWLEDGEMENT(Acknowledgement),
             4 => Self::USER_CONTROL_MESSAGE(UserControlMessage),
             5 => Self::WINDOW_ACKNOWLEDGEMENT(WindowAcknowledgement),
             6 => Self::SET_PEER_BANDWIDTH(SetPeerBandWidth),
@@ -356,7 +357,7 @@ impl From<u8> for MessageType {
             16 => Self::SHARED_OBJECT_MESSAGE_16(SharedObjectMessage16),
             _ => {
                 log::error!("[From MessageType {}]", value);
-                todo!()
+                Self::UNKOWN
             }
         }
     }
@@ -365,7 +366,7 @@ impl From<u8> for MessageType {
 impl Into<u8> for MessageType {
     fn into(self) -> u8 {
         match self {
-            MessageType::UNKOWN => todo!(),
+            MessageType::UNKOWN => 0,
             MessageType::SET_CHUNK_SIZE(_) => 1,
             MessageType::ABORT_MESSAGE(_) => 2,
             MessageType::ACKNOWLEDGEMENT(_) => 3,
@@ -381,7 +382,7 @@ impl Into<u8> for MessageType {
             MessageType::SHARED_OBJECT_MESSAGE_19(_) => 19,
             MessageType::SHARED_OBJECT_MESSAGE_16(_) => 16,
 
-            _ => todo!(),
+            _ => 0,
         }
     }
 }

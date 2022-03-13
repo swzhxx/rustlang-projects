@@ -106,7 +106,12 @@ impl Message {
             MessageType::AUDIO_MESSAGE(_) => {
                 AudioMessage::excute(chunk_data, ctx, stream, self).await;
             }
-            _ => todo!(),
+            MessageType::VIDEO_MESSAGE(_) => {
+                VideoMessage::excute(chunk_data, ctx, stream, self).await;
+            }
+            _ => {
+                log::error!("UNKNOWN MESSAGE EXCUTE")
+            }
         }
     }
 }
