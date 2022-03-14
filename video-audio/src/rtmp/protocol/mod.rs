@@ -57,6 +57,7 @@ pub struct RtmpCtx {
     abort_chunk_id: Option<u32>,
     stream_name: Option<String>,
     is_publisher: bool,
+    is_delete: bool,
 }
 
 #[derive(Debug, Default)]
@@ -124,6 +125,7 @@ impl RtmpCtx {
             abort_chunk_id: None,
             stream_name: None,
             is_publisher: false,
+            is_delete: false,
         }
     }
 }
@@ -195,7 +197,7 @@ impl RtmpCtx {
         loop {
             let (chunk, full_chunk_message_header) = {
                 let mut effect_reader = AsyncReaderEffect::new(stream);
-                let result = Chunk::async_read_chunk(&mut effect_reader, self).await;
+                let result = Chunk::async_read_chunk(&mut effect_reader, self).await?;
                 self.reve_bytes += effect_reader.get_readed_bytes_num();
                 log::info!(
                     "[RECEIVED MESSAGE ] -> TYPE {:?} ; CHUNK ID {:?}",
@@ -211,6 +213,10 @@ impl RtmpCtx {
             if let Some(message) = message_factor.add_chunk(chunk, &full_chunk_message_header) {
                 log::trace!("[MESSAGE DISAPTCH {:?}]", message.message_type);
                 message.dispatch(self, stream).await;
+            }
+
+            if self.is_delete {
+                break;
             }
         }
         Ok(())

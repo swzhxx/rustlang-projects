@@ -24,11 +24,11 @@ impl Chunk {
     pub async fn async_read_chunk<Reader>(
         reader: &mut Reader,
         ctx: &RtmpCtx,
-    ) -> (Self, FullChunkMessageHeader)
+    ) -> anyhow::Result<(Self, FullChunkMessageHeader)>
     where
         Reader: AR,
     {
-        let mut byte = async_read_1_byte(reader).await;
+        let mut byte = async_read_1_byte(reader).await?;
         let one = byte.get_u8();
 
         let fmt = one >> 6;
@@ -36,13 +36,13 @@ impl Chunk {
         let mut cs_id = (one << 2 >> 2) as u32;
         if cs_id == 0 {
             // 如果低6位的字节为0 ， 则再读取一个字节 cs_id = 第二个字节的值 + 64;
-            let mut byts = async_read_1_byte(reader).await;
+            let mut byts = async_read_1_byte(reader).await?;
             let num = byts.get_u8();
             cs_id = num as u32 + 64;
         } else if cs_id == 1 {
-            let mut bytes = async_read_1_byte(reader).await;
+            let mut bytes = async_read_1_byte(reader).await?;
             let num_1 = bytes.get_u8();
-            let mut bytes = async_read_1_byte(reader).await;
+            let mut bytes = async_read_1_byte(reader).await?;
             let num_2 = bytes.get_u8();
             cs_id = num_2 as u32 * 255 + num_1 as u32 + 64;
         }
@@ -68,37 +68,52 @@ impl Chunk {
         let last_full_chunk_message_header = ctx.last_full_chunk_message_header.get(&cs_id);
 
         let mut will_read_message_length: u32 = 0;
+
+        let calc_read_size = |message_length| {
+            let will_read_size = message_length as i64 - ctx.chunk_size as i64;
+            if will_read_size > 0 {
+                ctx.chunk_size
+            } else {
+                message_length
+            }
+        };
+        let mut_reminder_message_length =
+            |chunk_message_header: &mut FullChunkMessageHeader, will_read_size: u32| {
+                let reminder = {
+                    if chunk_message_header.reminder_message_length == 0 {
+                        chunk_message_header.message_length as i64 - will_read_size as i64
+                    } else {
+                        chunk_message_header.reminder_message_length as i64 - will_read_size as i64
+                    }
+                };
+                if reminder < 0 {
+                    chunk_message_header.reminder_message_length = 0
+                } else {
+                    chunk_message_header.reminder_message_length = reminder as u32
+                }
+            };
+
         if last_full_chunk_message_header.is_none() {
             will_read_message_length = match &chunk_message_header {
                 ChunkMessageHeader::ChunkMessageHeader11(chunk_message_header) => {
                     will_return_full_chunk_message_header = chunk_message_header.into();
-                    let reminder_message_length = {
-                        let reminder =
-                            chunk_message_header.message_length as i64 - ctx.chunk_size as i64;
-                        if reminder >= 0 {
-                            reminder
-                        } else {
-                            0
-                        }
-                    };
-
-                    will_return_full_chunk_message_header.reminder_message_length =
-                        reminder_message_length as u32;
-                    // chunk_message_header.message_length
-                    if reminder_message_length > 0i64 {
-                        ctx.chunk_size
-                    } else {
-                        chunk_message_header.message_length
-                    }
+                    let read_size =
+                        calc_read_size(will_return_full_chunk_message_header.message_length);
+                    mut_reminder_message_length(
+                        &mut will_return_full_chunk_message_header,
+                        read_size,
+                    );
+                    read_size
                 }
 
                 _ => {
                     log::error!(
-                        "[CHUNK ERROR] -> fmt {:?} ,cs_id {:?}, message_header {:?} , receive_chunk_ids {:?}",
+                        "[CHUNK ERROR] -> fmt {:?} ,cs_id {:?}, message_header {:?} , receive_chunk_ids {:?} , chunk_size {:?}",
                         fmt,
                         cs_id,
                         chunk_message_header,
-                        ctx.last_full_chunk_message_header.keys()
+                        ctx.last_full_chunk_message_header.keys(),
+                        ctx.chunk_size
                     );
                     unreachable!()
                 }
@@ -108,24 +123,13 @@ impl Chunk {
             will_read_message_length = match &chunk_message_header {
                 ChunkMessageHeader::ChunkMessageHeader11(chunk_message_header) => {
                     will_return_full_chunk_message_header = chunk_message_header.into();
-                    let reminder_message_length = {
-                        let reminder =
-                            chunk_message_header.message_length as i64 - ctx.chunk_size as i64;
-                        if reminder > 0 {
-                            reminder
-                        } else {
-                            0
-                        }
-                    };
-                    will_return_full_chunk_message_header.reminder_message_length =
-                        reminder_message_length as u32;
-
-                    // chunk_message_header.message_length
-                    if reminder_message_length > 0 {
-                        ctx.chunk_size
-                    } else {
-                        chunk_message_header.message_length
-                    }
+                    let read_size =
+                        calc_read_size(will_return_full_chunk_message_header.message_length);
+                    mut_reminder_message_length(
+                        &mut will_return_full_chunk_message_header,
+                        read_size,
+                    );
+                    read_size
                 }
                 ChunkMessageHeader::ChunkMessageHeader7(chunk_message_header) => {
                     will_return_full_chunk_message_header = FullChunkMessageHeader {
@@ -136,7 +140,13 @@ impl Chunk {
                         message_length: chunk_message_header.message_length,
                         reminder_message_length: 0,
                     };
-                    will_return_full_chunk_message_header.message_length
+                    let read_size =
+                        calc_read_size(will_return_full_chunk_message_header.message_length);
+                    mut_reminder_message_length(
+                        &mut will_return_full_chunk_message_header,
+                        read_size,
+                    );
+                    read_size
                 }
                 ChunkMessageHeader::ChunkMessageHeader3(chunk_message_header) => {
                     will_return_full_chunk_message_header = FullChunkMessageHeader {
@@ -147,35 +157,49 @@ impl Chunk {
                         msg_stream_id: last_full_chunk_message_header.msg_stream_id,
                         reminder_message_length: 0,
                     };
-                    will_return_full_chunk_message_header.message_length
+                    let read_size =
+                        calc_read_size(will_return_full_chunk_message_header.message_length);
+                    mut_reminder_message_length(
+                        &mut will_return_full_chunk_message_header,
+                        read_size,
+                    );
+                    read_size
                 }
                 ChunkMessageHeader::ChunkMessageHeader0(_) => {
                     let reminder_message_length =
                         last_full_chunk_message_header.reminder_message_length;
+
                     will_return_full_chunk_message_header = last_full_chunk_message_header.clone();
-
-                    let will_read_size = reminder_message_length as i64 - ctx.chunk_size as i64;
-
-                    if will_read_size > 0 {
-                        will_return_full_chunk_message_header.reminder_message_length -=
-                            ctx.chunk_size;
-                        ctx.chunk_size
+                    let mut result = 0;
+                    if reminder_message_length > 0 {
+                        result = calc_read_size(reminder_message_length);
                     } else {
-                        will_return_full_chunk_message_header.reminder_message_length = 0;
-                        reminder_message_length
-                    }
+                        result =
+                            calc_read_size(will_return_full_chunk_message_header.message_length);
+                        will_return_full_chunk_message_header.reminder_message_length =
+                            will_return_full_chunk_message_header.message_length;
+                    };
+                    mut_reminder_message_length(&mut will_return_full_chunk_message_header, result);
+                    result
                 }
             }
         }
-
+        log::trace!(
+            " will_read_message_length {:?} {:?} {:?}",
+            will_read_message_length,
+            will_return_full_chunk_message_header.message_length,
+            will_return_full_chunk_message_header.reminder_message_length
+        );
         // 读取Data
-        let bytes = async_read_num_byte(reader, will_read_message_length as usize).await;
+        let bytes = async_read_num_byte(reader, will_read_message_length as usize)
+            .await
+            .unwrap();
         let chunk = Chunk {
             cs_id,
             chunk_header: chunk_message_header,
             message_data: bytes.to_vec(),
         };
-        (chunk, will_return_full_chunk_message_header)
+        Ok((chunk, will_return_full_chunk_message_header))
     }
 }
 
@@ -202,7 +226,7 @@ impl AsyncFrom for ChunkMessageHeader11 {
     where
         Reader: AR,
     {
-        let mut bytes = async_read_num_byte(reader, 11).await;
+        let mut bytes = async_read_num_byte(reader, 11).await.unwrap();
         let b32 = bytes.get_u32();
         let time_stamp = b32 >> 8;
         let reminder = (b32 << 24 >> 24) as u8;
@@ -242,14 +266,14 @@ impl AsyncFrom for ChunkMessageHeader7 {
     where
         Reader: AR,
     {
-        let mut b4 = async_read_4_byte(reader).await;
+        let mut b4 = async_read_4_byte(reader).await.unwrap();
         let b4 = b4.get_u32();
         let time_stamp_delta = b4 >> 8;
         let message_length_header = b4 << 24 >> 24;
-        let message_reminder = async_read_2_byte(reader).await.get_u16();
+        let message_reminder = async_read_2_byte(reader).await.unwrap().get_u16();
         let message_length =
             (((message_length_header as u64) << 16) + message_reminder as u64) as u32;
-        let message_type_id = async_read_1_byte(reader).await.get_u8();
+        let message_type_id = async_read_1_byte(reader).await.unwrap().get_u8();
         let message_type = message_type_id.into();
         Self {
             time_stamp_delta,
@@ -270,7 +294,7 @@ impl AsyncFrom for ChunkMessageHeader3 {
     where
         Reader: AR,
     {
-        let mut b3 = async_read_3_byte(reader).await;
+        let mut b3 = async_read_3_byte(reader).await.unwrap();
         let b1 = b3.get_u8();
         let b2 = b3.get_u16();
 

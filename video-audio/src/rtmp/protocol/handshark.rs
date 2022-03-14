@@ -26,7 +26,7 @@ impl AsyncFrom for HandShark0 {
     where
         Reader: AR,
     {
-        let mut bytes = async_read_1_byte(reader).await;
+        let mut bytes = async_read_1_byte(reader).await.unwrap();
         let version = bytes.get_u8();
         return HandShark0 { version };
     }
@@ -67,7 +67,7 @@ impl AsyncFrom for HandShark1 {
     where
         Reader: AR,
     {
-        let mut bytes = async_read_num_byte(reader, 1536).await;
+        let mut bytes = async_read_num_byte(reader, 1536).await.unwrap();
         let time = bytes.get_u32();
         let zero = bytes.get_u32();
         let random_data = bytes.get(0..1528).unwrap().to_vec();
@@ -106,7 +106,7 @@ impl AsyncFrom for HandShark2 {
     where
         Reader: AR,
     {
-        let mut bytes = async_read_num_byte(reader, 1536).await;
+        let mut bytes = async_read_num_byte(reader, 1536).await.unwrap();
         let time1 = bytes.get_u32();
         let time2 = bytes.get_u32();
         let random_echo = bytes.get(0..1528).unwrap().to_vec();

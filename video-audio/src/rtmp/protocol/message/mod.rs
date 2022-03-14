@@ -81,7 +81,9 @@ impl Message {
     {
         let chunk_data = &self.message_body[..];
         match &self.message_type {
-            MessageType::UNKOWN => todo!(),
+            MessageType::UNKOWN => {
+                todo!()
+            }
             MessageType::SET_CHUNK_SIZE(message) => {
                 SetChunkSize::excute(chunk_data, ctx).await;
             }
@@ -176,7 +178,7 @@ impl MessageFactor {
             message_length == data.len()
         };
         if is_enough {
-            log::trace!("[MESSAGE is_enough]");
+            log::trace!("[MESSAGE is_enough] -> {}", full_chunk_descr.message_length);
             // todo 转化为Message
             return Some(Message::from_chunks(vec![chunk], full_chunk_descr));
         } else {

@@ -24,7 +24,9 @@ pub use command_message::*;
 /// 未知消息
 #[derive(Debug, Clone)]
 pub struct UnknownMessage;
-
+impl UnknownMessage {
+    pub async fn excute() {}
+}
 /// 设置消息大小
 #[derive(Debug, Clone)]
 pub struct SetChunkSize;
@@ -211,7 +213,7 @@ impl AsyncFrom for LimitType {
     where
         Reader: AR,
     {
-        let mut bytes = async_read_1_byte(reader).await;
+        let mut bytes = async_read_1_byte(reader).await.unwrap();
         let value = bytes.get_u8();
         let limit_type = value.try_into();
         limit_type.unwrap()
@@ -276,7 +278,7 @@ impl AudioMessage {
     {
         audio_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
         log::trace!(
-            "[REIVED AUDIO MESSAGE] -> AUDIO DATA LEN {}",
+            "[RECEIVED AUDIO MESSAGE] -> AUDIO DATA LEN {}",
             chunk_data.len()
         );
         // todo 将音频文件保存在本地,为后续hlv做准备
@@ -300,7 +302,7 @@ impl VideoMessage {
     {
         video_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
         log::trace!(
-            "[REIVED VIDEO MESSAGE] -> VIDEO DATA LEN {}",
+            "[RECEIVED VIDEO MESSAGE] -> VIDEO DATA LEN {}",
             chunk_data.len()
         );
         // todo 将视频文件保存在本地,为后续hlv做准备
