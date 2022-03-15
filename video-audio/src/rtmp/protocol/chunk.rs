@@ -2,10 +2,11 @@ use std::marker::PhantomData;
 
 use crate::util::{
     async_read_1_byte, async_read_2_byte, async_read_3_byte, async_read_4_byte,
-    async_read_num_byte, AsyncFrom, AR,
+    async_read_num_byte, AsyncFrom, AsyncWriteByte, AR, AW,
 };
 use async_trait::async_trait;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
+use tokio::io::AsyncWriteExt;
 
 use super::{message::MessageType, RtmpCtx};
 
@@ -18,6 +19,16 @@ pub struct Chunk {
     pub cs_id: u32,
     pub chunk_header: ChunkMessageHeader,
     pub message_data: Vec<u8>,
+}
+
+impl Default for Chunk {
+    fn default() -> Self {
+        Self {
+            cs_id: Default::default(),
+            chunk_header: ChunkMessageHeader::ChunkMessageHeader0(ChunkMessageHeader0),
+            message_data: Default::default(),
+        }
+    }
 }
 
 impl Chunk {
@@ -184,12 +195,12 @@ impl Chunk {
                 }
             }
         }
-        log::trace!(
-            " will_read_message_length {:?} {:?} {:?}",
-            will_read_message_length,
-            will_return_full_chunk_message_header.message_length,
-            will_return_full_chunk_message_header.reminder_message_length
-        );
+        // log::trace!(
+        //     " will_read_message_length {:?} {:?} {:?}",
+        //     will_read_message_length,
+        //     will_return_full_chunk_message_header.message_length,
+        //     will_return_full_chunk_message_header.reminder_message_length
+        // );
         // 读取Data
         let bytes = async_read_num_byte(reader, will_read_message_length as usize)
             .await
@@ -200,6 +211,57 @@ impl Chunk {
             message_data: bytes.to_vec(),
         };
         Ok((chunk, will_return_full_chunk_message_header))
+    }
+}
+
+#[async_trait]
+impl AsyncWriteByte for Chunk {
+    async fn async_write_byte<Writer>(&self, writer: &mut Writer)
+    where
+        Writer: AW,
+    {
+        let mut bytes = BytesMut::new();
+        /* todo  这里使用一个简单的实现，
+        本来应该需要更具 最大chunk_size 切割message_body,处理对应的fmt组装成Chunk发送。
+        这里先简单实现*/
+        if self.cs_id < 64 {
+            bytes.put_u8(self.cs_id.try_into().unwrap())
+        } else if self.cs_id < 320 {
+            let chunk_id = self.cs_id - 64;
+            bytes.put_u8(0);
+            bytes.put_u8(chunk_id as u8);
+        } else {
+            let chunk_id = self.cs_id - 64;
+            bytes.put_u8(63);
+            bytes.put_u16_le(chunk_id as u16);
+        }
+
+        match &self.chunk_header {
+            ChunkMessageHeader::ChunkMessageHeader11(header) => {
+                bytes.put_slice(&header.time_stamp.to_be_bytes()[1..4]);
+                let payload_length = &(header.message_length as u32).to_be_bytes()[1..4];
+                bytes.put_slice(&payload_length[..]);
+                bytes.put_u8(header.message_type.clone().into());
+                bytes.put_u32(header.message_stream_id);
+                bytes.put_slice(&self.message_data[..]);
+            }
+            ChunkMessageHeader::ChunkMessageHeader7(header) => {
+                bytes.put_slice(&header.time_stamp_delta.to_be_bytes()[1..4]);
+                let payload_length = &(header.message_length as u32).to_be_bytes()[1..4];
+                bytes.put_slice(&payload_length[..]);
+                bytes.put_u8(header.message_type.clone().into());
+                bytes.put_slice(&self.message_data[..]);
+            }
+            ChunkMessageHeader::ChunkMessageHeader3(header) => {
+                bytes.put_slice(&header.time_stamp_delta.to_be_bytes()[1..4]);
+                bytes.put_slice(&self.message_data[..]);
+            }
+            ChunkMessageHeader::ChunkMessageHeader0(header) => {
+                bytes.put_slice(&self.message_data[..]);
+            }
+        }
+        let _ = writer.write_all(&bytes[..]).await;
+        writer.flush().await.unwrap();
     }
 }
 

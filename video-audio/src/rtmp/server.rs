@@ -11,7 +11,9 @@ pub fn start_server() -> JoinHandle<anyhow::Result<()>> {
         loop {
             let (stream, _) = listener.accept().await?;
             log::info!("[PEER ADDR {:?} CONNECT]", stream.peer_addr());
-            let _ = accpect_rtmp(stream).await;
+            tokio::spawn(async {
+                let _ = accpect_rtmp(stream).await;
+            });
         }
     })
 }

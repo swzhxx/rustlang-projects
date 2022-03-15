@@ -10,17 +10,22 @@ where
     E: Clone,
 {
     pub fn new_with_label(label: String) -> Self {
-        let (tx, rx) = broadcast::channel(1);
+        let (tx, _rx) = broadcast::channel(16);
         Self { label, tx: tx }
     }
 
     pub fn register_receive(&self) -> broadcast::Receiver<E> {
-        let mut rx;
+        let rx;
         rx = self.tx.subscribe();
         rx
     }
 
     pub async fn publish(&self, e: E) {
-        self.tx.send(e);
+        match self.tx.send(e) {
+            Ok(_) => {}
+            Err(err) => {
+                log::error!("[PUBLISH ERROR] {}", err)
+            }
+        }
     }
 }

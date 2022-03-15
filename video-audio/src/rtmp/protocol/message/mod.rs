@@ -7,7 +7,13 @@ use bytes::{BufMut, BytesMut};
 pub use messages::*;
 use tokio::io::AsyncWriteExt;
 
-use crate::util::{AsyncWriteByte, AR, AW};
+use crate::{
+    rtmp::protocol::{
+        chunk::{ChunkMessageHeader, ChunkMessageHeader11},
+        message,
+    },
+    util::{AsyncWriteByte, AR, AW},
+};
 
 use super::{
     chunk::{Chunk, FullChunkMessageHeader},
@@ -111,48 +117,62 @@ impl Message {
             MessageType::VIDEO_MESSAGE(_) => {
                 VideoMessage::excute(chunk_data, ctx, stream, self).await;
             }
+            MessageType::USER_CONTROL_MESSAGE(_) => {
+                UserControlMessage::excute(chunk_data, ctx, stream, self).await;
+            }
             _ => {
                 log::error!("UNKNOWN MESSAGE EXCUTE")
             }
         }
     }
+
+    pub fn split_chunks(&self, ctx: &RtmpCtx) -> Vec<Chunk> {
+        let chunk_id = self.chunk_id;
+        let mut message_body = &self.message_body[0..];
+        let chunk_size = ctx.chunk_size as usize;
+        let mut chunks = vec![];
+        loop {
+            let mut chunk = Chunk::default();
+            if chunks.len() == 0 {
+                chunk.cs_id = chunk_id;
+                let chunk_message_header = ChunkMessageHeader11 {
+                    time_stamp: self.time_stamp,
+                    message_length: self.message_body.len() as u32,
+                    message_type: self.message_type.clone(),
+                    message_stream_id: self.message_stream_id,
+                };
+                chunk.chunk_header = ChunkMessageHeader::ChunkMessageHeader11(chunk_message_header);
+                let size = message_body.len().min(chunk_size);
+                log::error!("size {:?}  {:?}", size, chunk_size);
+                chunk.message_data = (&message_body[0..size]).to_vec();
+                message_body = &message_body[size..];
+            } else {
+                chunk.cs_id = chunk_id;
+                let size = message_body.len().min(chunk_size);
+                chunk.message_data = (&message_body[0..size]).to_vec();
+
+                message_body = &message_body[size..];
+            }
+            chunks.push(chunk);
+            if message_body.len() == 0 {
+                break;
+            }
+        }
+        chunks
+    }
 }
 
-#[async_trait]
-impl AsyncWriteByte for Message {
-    async fn async_write_byte<Writer>(&self, writer: &mut Writer)
+impl Message {
+    async fn async_write_byte<Writer>(&self, ctx: &RtmpCtx, writer: &mut Writer)
     where
         Writer: AW,
     {
-        let message_type: u8 = self.message_type.clone().into();
-        let payload_length = &(self.message_body.len() as u32).to_be_bytes()[1..4];
-
         log::trace!("[MESSAGE SEND] -> {:?}", self.message_type);
-        let mut bytes = BytesMut::new();
-        /* todo  这里使用一个简单的实现，
-        本来应该需要更具 最大chunk_size 切割message_body,处理对应的fmt组装成Chunk发送。
-        这里先简单实现*/
-        if self.chunk_id < 64 {
-            bytes.put_u8(self.chunk_id.try_into().unwrap())
-        } else if self.chunk_id < 320 {
-            let chunk_id = self.chunk_id - 64;
-            bytes.put_u8(0);
-            bytes.put_u8(chunk_id as u8);
-        } else {
-            let chunk_id = self.chunk_id - 64;
-            bytes.put_u8(63);
-            bytes.put_u16_le(chunk_id as u16);
+        let chunks = self.split_chunks(ctx);
+        let iter = chunks.iter();
+        for chunk in iter {
+            chunk.async_write_byte(writer).await;
         }
-        bytes.put_slice(&self.time_stamp.to_be_bytes()[1..4]);
-
-        bytes.put_slice(&payload_length[..]);
-        bytes.put_u8(message_type);
-        bytes.put_u32(self.message_stream_id);
-        // 写入Payload
-        bytes.put_slice(&self.message_body[..]);
-
-        writer.write_all(&bytes[..]).await.unwrap();
-        writer.flush().await.unwrap();
     }
 }
 

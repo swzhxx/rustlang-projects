@@ -68,9 +68,17 @@ pub struct RtmpMetaData {
     pub video_data_rate: f64,
     pub audio_codec_id: String,
     pub audio_data_rate: f64,
+    pub audio_sample_rate: f64,
+    pub audio_sample_size: f64,
+    pub stereo: bool,
     pub frame_rate: f64,
     pub duration: f64,
-    pub begin_time: i64,
+
+    pub file_size: f64,
+    pub major_brand: String,
+    pub minor_version: String,
+    pub compatible_brands: String,
+    pub encoder: String,
 }
 
 impl TryFrom<&amf0::Value> for RtmpMetaData {
@@ -106,6 +114,29 @@ impl TryFrom<&amf0::Value> for RtmpMetaData {
                     }
                     "audiodatarate" => {
                         meta_data.audio_data_rate = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "audio_sample_rate" => {
+                        meta_data.audio_sample_rate = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "audio_sample_size" => {
+                        meta_data.audio_sample_size = item.value.try_as_f64().unwrap_or_default();
+                    }
+                    "encoder" => {
+                        meta_data.encoder = item.value.try_as_str().unwrap_or_default().to_owned();
+                    }
+                    "compatible_brands" => {
+                        meta_data.compatible_brands =
+                            item.value.try_as_str().unwrap_or_default().to_owned();
+                    }
+                    "stereo" => match item.value {
+                        amf::Amf0Value::Boolean(b) => {
+                            meta_data.stereo = b;
+                        }
+                        _ => {}
+                    },
+                    "minor_version" => {
+                        meta_data.minor_version =
+                            item.value.try_as_str().unwrap_or_default().to_owned();
                     }
                     _ => {}
                 }
@@ -211,7 +242,11 @@ impl RtmpCtx {
                 .insert(chunk.cs_id.clone(), full_chunk_message_header.clone());
 
             if let Some(message) = message_factor.add_chunk(chunk, &full_chunk_message_header) {
-                log::trace!("[MESSAGE DISAPTCH {:?}]", message.message_type);
+                log::trace!(
+                    "[MESSAGE DISAPTCH {:?}  {:?}]",
+                    message.message_type,
+                    message.time_stamp
+                );
                 message.dispatch(self, stream).await;
             }
 

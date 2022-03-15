@@ -72,7 +72,7 @@ impl CommandMessageAMF020 {
                     }
                     "play" => {
                         log::trace!("[PLAY COMMAND]");
-                        todo!()
+                        Play::excute_mut(ctx, &values, writer).await;
                     }
                     _ => {
                         log::error!("[COMMAND MESSAGE AMF0 UNKNOWN COMMAND] -> {:?}", command);
@@ -88,15 +88,19 @@ impl CommandMessageAMF020 {
         }
     }
 
-    pub async fn send<Writer>(command_type: Command, data: &Vec<amf0::Value>, writer: &mut Writer)
-    where
+    pub async fn send<Writer>(
+        command_type: Command,
+        data: &Vec<amf0::Value>,
+        ctx: &RtmpCtx,
+        writer: &mut Writer,
+    ) where
         Writer: AW,
     {
         let cs_id = 2;
         let message_stream_id = 0;
 
         let mut message_body = vec![];
-        let command_type: amf0::Value = (&command_type).into();
+        // let command_type: amf0::Value = (&command_type).into();
         // command_type.write_to(&mut message_body);
         for i in 0..data.len() {
             let data = &data[i];
@@ -111,7 +115,7 @@ impl CommandMessageAMF020 {
             message_body,
         );
 
-        message.async_write_byte(writer).await;
+        message.async_write_byte(ctx, writer).await;
     }
 }
 
@@ -123,6 +127,8 @@ pub enum Command {
     CREATE_STREAM(CreateStream),
     PUBLISH(Publish),
     PLAY(Play),
+    OnStatus(OnStatus),
+    OnMetaData(OnMetaData),
     UNKOWN,
 }
 
@@ -134,6 +140,8 @@ impl Into<amf0::Value> for &Command {
             Command::PUBLISH(_) => amf0::Value::String("publish".to_string()),
             Command::PLAY(_) => amf0::Value::String("play".to_string()),
             Command::UNKOWN => amf0::Value::String("unknown".to_string()),
+            Command::OnStatus(_) => amf0::Value::String("onStatus".to_string()),
+            Command::OnMetaData(_) => amf0::Value::String("onMetaData".to_string()),
         }
     }
 }
@@ -217,7 +225,7 @@ impl CommandResponse for Connect {
                 },
             ],
         });
-        CommandMessageAMF020::send(Command::CONNECT(Connect), &amf_datas, writer).await;
+        CommandMessageAMF020::send(Command::CONNECT(Connect), &amf_datas, ctx, writer).await;
     }
 }
 
@@ -236,7 +244,13 @@ impl CommandResponse for CreateStream {
         amf_datas.push(prev_command_number);
         amf_datas.push(amf0::Value::Null);
         amf_datas.push(amf0::Value::Number(9.0));
-        CommandMessageAMF020::send(Command::CREATE_STREAM(CreateStream), &amf_datas, writer).await;
+        CommandMessageAMF020::send(
+            Command::CREATE_STREAM(CreateStream),
+            &amf_datas,
+            ctx,
+            writer,
+        )
+        .await;
     }
 }
 
@@ -261,7 +275,7 @@ impl CommandExcuteMut for Publish {
 
 #[async_trait]
 impl CommandResponse for Publish {
-    async fn response<Writer>(_ctx: &mut RtmpCtx, _values: &Vec<amf0::Value>, writer: &mut Writer)
+    async fn response<Writer>(ctx: &mut RtmpCtx, _values: &Vec<amf0::Value>, writer: &mut Writer)
     where
         Writer: AW,
     {
@@ -286,8 +300,28 @@ impl CommandResponse for Publish {
                 },
             ],
         });
-        CommandMessageAMF020::send(Command::PUBLISH(Publish), &amf_datas, writer).await
+        CommandMessageAMF020::send(Command::PUBLISH(Publish), &amf_datas, ctx, writer).await
     }
 }
 
 pub struct Play;
+
+impl Play {
+    pub async fn excute_mut<Writer>(
+        ctx: &mut RtmpCtx,
+        values: &Vec<amf0::Value>,
+        writer: &mut Writer,
+    ) where
+        Writer: AW,
+    {
+        let stream_name = values[3].try_as_str().unwrap_or_default();
+        ctx.stream_name = Some(stream_name.to_string());
+        SetChunkSize::send(1418, ctx, writer).await;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OnStatus;
+
+#[derive(Debug, Clone)]
+pub struct OnMetaData;

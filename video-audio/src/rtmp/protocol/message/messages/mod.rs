@@ -57,7 +57,7 @@ impl SetChunkSize {
             0,
             chunk_size.to_be_bytes().to_vec(),
         );
-        message.async_write_byte(writer).await
+        message.async_write_byte(ctx, writer).await
     }
 }
 
@@ -98,7 +98,7 @@ impl Acknowledgement {
             2,
             sequence_number.to_be_bytes().to_vec(),
         );
-        message.async_write_byte(writer).await;
+        message.async_write_byte(ctx, writer).await;
     }
 }
 
@@ -131,7 +131,7 @@ impl WindowAcknowledgement {
             ack_window_size.to_be_bytes().to_vec(),
         );
 
-        message.async_write_byte(writer).await
+        message.async_write_byte(ctx, writer).await
     }
 }
 
@@ -154,7 +154,7 @@ impl SetPeerBandWidth {
     pub async fn send<Writer>(
         ack_window_size: u32,
         limit_type: LimitType,
-        _ctx: &mut RtmpCtx,
+        ctx: &mut RtmpCtx,
         writer: &mut Writer,
     ) where
         Writer: AW,
@@ -171,7 +171,7 @@ impl SetPeerBandWidth {
             chunk_data,
         );
 
-        message.async_write_byte(writer).await;
+        message.async_write_byte(ctx, writer).await;
     }
 }
 
@@ -246,6 +246,13 @@ impl DataMessage18 {
         } else {
         }
     }
+
+    pub async fn send<Writer>(writer: &mut Writer)
+    where
+        Writer: AW,
+    {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -276,7 +283,9 @@ impl AudioMessage {
     ) where
         Writer: AW,
     {
-        audio_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+        if message.message_body[0] == 0xAF && message.message_body[1] == 0x00 {
+            audio_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+        }
         log::trace!(
             "[RECEIVED AUDIO MESSAGE] -> AUDIO DATA LEN {}",
             chunk_data.len()
@@ -300,7 +309,9 @@ impl VideoMessage {
     ) where
         Writer: AW,
     {
-        video_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+        if message.message_body[0] == 0x17 && message.message_body[1] == 0x00 {
+            video_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+        }
         log::trace!(
             "[RECEIVED VIDEO MESSAGE] -> VIDEO DATA LEN {}",
             chunk_data.len()
