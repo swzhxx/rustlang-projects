@@ -174,7 +174,7 @@ impl CommandExcuteMut for Connect {
     where
         Writer: AW,
     {
-        WindowAcknowledgement::send(50000, ctx, writer).await;
+        WindowAcknowledgement::send(2826, ctx, writer).await;
         SetPeerBandWidth::send(1418, super::LimitType::Soft, ctx, writer).await;
         ctx.chunk_size = 1418;
         SetChunkSize::send(1418, ctx, writer).await;
@@ -266,10 +266,15 @@ impl CommandExcuteMut for Publish {
         let stream_name = values[3].try_as_str().unwrap_or_default().to_string();
         ctx.stream_name = Some(stream_name.clone());
         ctx.is_publisher = true;
-        eventbus_map().insert(
-            stream_name.clone(),
-            EventBus::new_with_label(stream_name.clone()),
-        );
+        match eventbus_map().get(&stream_name) {
+            Some(_) => {}
+            None => {
+                eventbus_map().insert(
+                    stream_name.clone(),
+                    EventBus::new_with_label(stream_name.clone()),
+                );
+            }
+        };
     }
 }
 
@@ -316,6 +321,15 @@ impl Play {
     {
         let stream_name = values[3].try_as_str().unwrap_or_default();
         ctx.stream_name = Some(stream_name.to_string());
+        match eventbus_map().get(stream_name) {
+            Some(event_bus) => {}
+            None => {
+                eventbus_map().insert(
+                    stream_name.to_string(),
+                    EventBus::new_with_label(stream_name.to_string()),
+                );
+            }
+        };
         SetChunkSize::send(1418, ctx, writer).await;
     }
 }

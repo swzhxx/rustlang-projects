@@ -1,6 +1,8 @@
+use std::{fs::OpenOptions, io::Write};
+
 use amf::{amf0, Pair};
 use async_trait::async_trait;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use chrono::Local;
 
 use crate::{
@@ -39,7 +41,7 @@ impl UserControlMessage {
         Writer: AW,
     {
         let cs_id = 2;
-        let message_stream_id = 0;
+        // let message_stream_id = 0;
         let event_type_number: u8 = event_type.try_into().unwrap();
         let mut message_body = (event_type_number as u32).to_be_bytes().to_vec();
         message_body.append(&mut event_data.clone().to_vec());
@@ -87,10 +89,9 @@ impl EventExcute for SetBufferLength {
     {
         log::trace!("[RECEIVED USER CONTROL MESSAGE] SET BUFFER LENGTH");
         let mut bytes = BytesMut::from_iter(message.message_body[2..].iter());
-        let stream_id = bytes.get_u32();
+        let stream_id = 1u32;
         let buffer_length = bytes.get_u32();
-        log::trace!("stream id {}", stream_id);
-        log::trace!("buffer_length {}", buffer_length);
+
         UserControlMessage::send(
             EventType::STREAM_BEGIN(StreamBegin),
             &stream_id.to_be_bytes()[..],
@@ -196,6 +197,26 @@ impl EventExcute for SetBufferLength {
                             key: "level".to_owned(),
                             value: amf::amf0::Value::String(Default::default()),
                         },
+                        Pair {
+                            key: "encoder".to_owned(),
+                            value: amf0::Value::String(meta_data.encoder.to_string()),
+                        },
+                        Pair {
+                            key: "stereo".to_owned(),
+                            value: amf0::Value::Boolean(meta_data.stereo),
+                        },
+                        Pair {
+                            key: "major_band".to_owned(),
+                            value: amf0::Value::String(meta_data.major_brand.to_string()),
+                        },
+                        Pair {
+                            key: "minor_version".to_owned(),
+                            value: amf0::Value::String(meta_data.minor_version.to_string()),
+                        },
+                        Pair {
+                            key: "compatible_brands".to_owned(),
+                            value: amf0::Value::String(meta_data.compatible_brands.to_string()),
+                        },
                     ],
                 });
                 CommandMessageAMF020::send(
@@ -205,24 +226,22 @@ impl EventExcute for SetBufferLength {
                     writer,
                 )
                 .await;
-            } else {
-                return;
             }
         }
-        ctx.ctx_begin_timestamp = Local::now().timestamp_millis();
+        // ctx.ctx_begin_timestamp = Local::now().timestamp_millis();
         // let src_begin_timestamp = ctx.ctx_begin_timestamp;
-        let begine_time_delta = (0) as u32;
+        // let begine_time_delta = (0) as u32;
         {
-            // send 视频格式
-            if let Some(msg) = video_header_map().get(ctx.stream_name.as_ref().unwrap()) {
-                msg.async_write_byte(ctx, writer).await;
-            }
+            // // send 视频格式
+            // if let Some(msg) = video_header_map().get(ctx.stream_name.as_ref().unwrap()) {
+            //     msg.async_write_byte(ctx, writer).await;
+            // }
         }
         {
-            // send 音频格式
-            if let Some(msg) = audio_header_map().get(ctx.stream_name.as_ref().unwrap()) {
-                msg.async_write_byte(ctx, writer).await;
-            }
+            // // send 音频格式
+            // if let Some(msg) = audio_header_map().get(ctx.stream_name.as_ref().unwrap()) {
+            //     msg.async_write_byte(ctx, writer).await;
+            // }
         }
 
         {
@@ -230,12 +249,44 @@ impl EventExcute for SetBufferLength {
             if let Some(event_bus) = eventbus_map().get(ctx.stream_name.as_ref().unwrap()) {
                 let mut receiver = event_bus.register_receive();
                 loop {
-                    if let Ok(mut msg) = receiver.recv().await {
+                    if let Ok(msg) = receiver.recv().await {
                         // log::trace!("{}   {}  ", msg.time_stamp, begine_time_delta);
                         // msg.time_stamp = msg.time_stamp - begine_time_delta;
-                       
-                        msg.message_stream_id = 0;
+                        // log::error!("hahah   {:?}", msg.message_type);
+                        // match msg.message_type {
+                        //     MessageType::AUDIO_MESSAGE(_) => {
+                        //         let mut file = OpenOptions::new()
+                        //             .create(true)
+                        //             .append(true)
+                        //             .open("./asserts/output_send.flv")
+                        //             .unwrap();
+                        //         let mut bytes = BytesMut::new();
+                        //         bytes.put_slice(&msg.message_body[..]);
+                        //         match file.write(&bytes) {
+                        //             Ok(_) => {}
+                        //             Err(err) => log::error!("Err {}", err),
+                        //         };
+                        //     }
+                        //     MessageType::VIDEO_MESSAGE(_) => {
+                        //         let mut file = OpenOptions::new()
+                        //             .create(true)
+                        //             .append(true)
+                        //             .open("./asserts/output_send.flv")
+                        //             .unwrap();
+                        //         let mut bytes = BytesMut::new();
+                        //         bytes.put_slice(&msg.message_body[..]);
+                        //         match file.write(&bytes) {
+                        //             Ok(_) => {}
+                        //             Err(err) => log::error!("Err {}", err),
+                        //         };
+                        //     }
+                        //     _ => {}
+                        // }
+
+                        // msg.message_stream_id = 0;
+                        // log::error!("send start {:?}", msg.message_type);
                         msg.async_write_byte(ctx, writer).await;
+                        // log::error!("send end {:?}", msg.message_type);
                     }
                 }
             }

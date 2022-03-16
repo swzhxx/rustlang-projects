@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{io, marker::PhantomData};
 
 use crate::util::{
     async_read_1_byte, async_read_2_byte, async_read_3_byte, async_read_4_byte,
@@ -221,23 +221,11 @@ impl AsyncWriteByte for Chunk {
         Writer: AW,
     {
         let mut bytes = BytesMut::new();
-        /* todo  这里使用一个简单的实现，
-        本来应该需要更具 最大chunk_size 切割message_body,处理对应的fmt组装成Chunk发送。
-        这里先简单实现*/
-        if self.cs_id < 64 {
-            bytes.put_u8(self.cs_id.try_into().unwrap())
-        } else if self.cs_id < 320 {
-            let chunk_id = self.cs_id - 64;
-            bytes.put_u8(0);
-            bytes.put_u8(chunk_id as u8);
-        } else {
-            let chunk_id = self.cs_id - 64;
-            bytes.put_u8(63);
-            bytes.put_u16_le(chunk_id as u16);
-        }
+        /* todo  这里对于Chunk_id 使用一个简单的实现这里先简单实现*/
 
         match &self.chunk_header {
             ChunkMessageHeader::ChunkMessageHeader11(header) => {
+                bytes.put_u8(self.cs_id.try_into().unwrap());
                 bytes.put_slice(&header.time_stamp.to_be_bytes()[1..4]);
                 let payload_length = &(header.message_length as u32).to_be_bytes()[1..4];
                 bytes.put_slice(&payload_length[..]);
@@ -256,7 +244,9 @@ impl AsyncWriteByte for Chunk {
                 bytes.put_slice(&header.time_stamp_delta.to_be_bytes()[1..4]);
                 bytes.put_slice(&self.message_data[..]);
             }
-            ChunkMessageHeader::ChunkMessageHeader0(header) => {
+            ChunkMessageHeader::ChunkMessageHeader0(_header) => {
+                let cs_id = 0xC0 | (self.cs_id as u8);
+                bytes.put_u8(cs_id);
                 bytes.put_slice(&self.message_data[..]);
             }
         }
@@ -264,6 +254,54 @@ impl AsyncWriteByte for Chunk {
         writer.flush().await.unwrap();
     }
 }
+
+// impl Chunk {
+//     pub fn write_byte<Writer>(&self, writer: &mut Writer)
+//     where
+//         Writer: io::Write,
+//     {
+//         let mut bytes = BytesMut::new();
+//         /* todo  这里使用一个简单的实现这里先简单实现*/
+//         if self.cs_id < 64 {
+//             bytes.put_u8(self.cs_id.try_into().unwrap())
+//         } else if self.cs_id < 320 {
+//             let chunk_id = self.cs_id - 64;
+//             bytes.put_u8(0);
+//             bytes.put_u8(chunk_id as u8);
+//         } else {
+//             let chunk_id = self.cs_id - 64;
+//             bytes.put_u8(63);
+//             bytes.put_u16_le(chunk_id as u16);
+//         }
+
+//         match &self.chunk_header {
+//             ChunkMessageHeader::ChunkMessageHeader11(header) => {
+//                 bytes.put_slice(&header.time_stamp.to_be_bytes()[1..4]);
+//                 let payload_length = &(header.message_length as u32).to_be_bytes()[1..4];
+//                 bytes.put_slice(&payload_length[..]);
+//                 bytes.put_u8(header.message_type.clone().into());
+//                 bytes.put_u32(header.message_stream_id);
+//                 bytes.put_slice(&self.message_data[..]);
+//             }
+//             ChunkMessageHeader::ChunkMessageHeader7(header) => {
+//                 bytes.put_slice(&header.time_stamp_delta.to_be_bytes()[1..4]);
+//                 let payload_length = &(header.message_length as u32).to_be_bytes()[1..4];
+//                 bytes.put_slice(&payload_length[..]);
+//                 bytes.put_u8(header.message_type.clone().into());
+//                 bytes.put_slice(&self.message_data[..]);
+//             }
+//             ChunkMessageHeader::ChunkMessageHeader3(header) => {
+//                 bytes.put_slice(&header.time_stamp_delta.to_be_bytes()[1..4]);
+//                 bytes.put_slice(&self.message_data[..]);
+//             }
+//             ChunkMessageHeader::ChunkMessageHeader0(_header) => {
+//                 bytes.put_slice(&self.message_data[..]);
+//             }
+//         }
+//         let _ = writer.write_all(&bytes[..]);
+//         writer.flush().unwrap();
+//     }
+// }
 
 #[derive(Debug)]
 pub enum ChunkMessageHeader {

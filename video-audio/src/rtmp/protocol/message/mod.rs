@@ -1,6 +1,6 @@
 mod messages;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, io};
 
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
@@ -49,7 +49,6 @@ impl Message {
         }
     }
     fn from_chunks(mut chunks: Vec<Chunk>, full_chunk_descr: &FullChunkMessageHeader) -> Self {
-        log::trace!("[MESSAGE FROM CHUNKS] -> {:?}", chunks.len());
         let message_type = full_chunk_descr.message_type.clone();
         let message_stream_id = full_chunk_descr.msg_stream_id;
         let time_stamp = full_chunk_descr.time_stamp;
@@ -109,7 +108,7 @@ impl Message {
                 CommandMessageAMF020::excute(chunk_data, ctx, stream).await;
             }
             MessageType::DATA_MESSAGE_18(_) => {
-                DataMessage18::excute(chunk_data, ctx, stream).await;
+                DataMessage18::excute(chunk_data, ctx, stream, self).await;
             }
             MessageType::AUDIO_MESSAGE(_) => {
                 AudioMessage::excute(chunk_data, ctx, stream, self).await;
@@ -143,7 +142,7 @@ impl Message {
                 };
                 chunk.chunk_header = ChunkMessageHeader::ChunkMessageHeader11(chunk_message_header);
                 let size = message_body.len().min(chunk_size);
-                log::error!("size {:?}  {:?}", size, chunk_size);
+
                 chunk.message_data = (&message_body[0..size]).to_vec();
                 message_body = &message_body[size..];
             } else {
@@ -170,10 +169,23 @@ impl Message {
         log::trace!("[MESSAGE SEND] -> {:?}", self.message_type);
         let chunks = self.split_chunks(ctx);
         let iter = chunks.iter();
+
         for chunk in iter {
             chunk.async_write_byte(writer).await;
         }
     }
+
+    // fn write_byte<Writer>(&self, ctx: &RtmpCtx, writer: &mut Writer)
+    // where
+    //     Writer: io::Write,
+    // {
+    //     let chunks = self.split_chunks(ctx);
+    //     let iter = chunks.iter();
+
+    //     for chunk in iter {
+    //         chunk.write_byte(writer);
+    //     }
+    // }
 }
 
 #[derive(Debug)]
@@ -198,8 +210,6 @@ impl MessageFactor {
             message_length == data.len()
         };
         if is_enough {
-            log::trace!("[MESSAGE is_enough] -> {}", full_chunk_descr.message_length);
-            // todo 转化为Message
             return Some(Message::from_chunks(vec![chunk], full_chunk_descr));
         } else {
             let cs_id = chunk.cs_id;

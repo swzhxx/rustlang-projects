@@ -1,3 +1,5 @@
+use std::{fs::File, io::Write};
+
 use chrono::Timelike;
 use tokio::sync::broadcast;
 pub struct EventBus<E> {
@@ -20,7 +22,7 @@ where
         rx
     }
 
-    pub async fn publish(&self, e: E) {
+    pub fn publish(&self, e: E) {
         match self.tx.send(e) {
             Ok(_) => {}
             Err(err) => {

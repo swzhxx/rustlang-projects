@@ -1,13 +1,17 @@
-use std::clone;
+use std::{
+    clone,
+    fs::{File, OpenOptions},
+    io::Write,
+};
 
 use crate::{
     rtmp::protocol::{
         audio_header_map, eventbus_map, meta_data_map, video_header_map, RtmpCtx, RtmpMetaData,
     },
-    util::{async_read_1_byte, read_all_amf_value, AsyncFrom, AsyncWriteByte, AR, AW},
+    util::{async_read_1_byte, read_all_amf_value, AsyncFrom, AsyncWriteByte, EventBus, AR, AW},
 };
 use async_trait::async_trait;
-use bytes::{buf::Limit, Buf, BytesMut};
+use bytes::{buf::Limit, Buf, BufMut, BytesMut};
 use tokio::io::{AsyncRead, AsyncWriteExt};
 
 use super::Message;
@@ -231,8 +235,12 @@ impl AsyncFrom for LimitType {
 pub struct DataMessage18;
 
 impl DataMessage18 {
-    pub async fn excute<Writer>(chunk_data: &[u8], ctx: &mut RtmpCtx, writer: &mut Writer)
-    where
+    pub async fn excute<Writer>(
+        chunk_data: &[u8],
+        ctx: &mut RtmpCtx,
+        writer: &mut Writer,
+        message: &Message,
+    ) where
         Writer: AW,
     {
         let values = read_all_amf_value(chunk_data);
@@ -240,7 +248,24 @@ impl DataMessage18 {
             let command = (&values[0]).try_as_str().unwrap();
             if command == "@setDataFrame" {
                 if let Ok(meta_data) = RtmpMetaData::try_from(&values[2]) {
+                    let stream_name = ctx.stream_name.as_ref().unwrap().clone();
                     meta_data_map().insert(ctx.stream_name.as_ref().unwrap().clone(), meta_data);
+
+                    match eventbus_map().get(&stream_name) {
+                        Some(event_bus) => {
+                            event_bus.publish(message.clone());
+                        }
+                        None => {
+                            let event_bus = eventbus_map()
+                                .insert(
+                                    stream_name.clone(),
+                                    EventBus::new_with_label(stream_name.clone()),
+                                )
+                                .unwrap();
+
+                            event_bus.publish(message.clone())
+                        }
+                    };
                 }
             }
         } else {
@@ -285,14 +310,26 @@ impl AudioMessage {
     {
         if message.message_body[0] == 0xAF && message.message_body[1] == 0x00 {
             audio_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+            // todo 将音频文件保存在本地,为后续hlv做准备
         }
         log::trace!(
             "[RECEIVED AUDIO MESSAGE] -> AUDIO DATA LEN {}",
             chunk_data.len()
         );
-        // todo 将音频文件保存在本地,为后续hlv做准备
+
         if let Some(eventbus) = eventbus_map().get(ctx.stream_name.as_ref().unwrap()) {
-            eventbus.publish(message.clone()).await
+            // let mut file = OpenOptions::new()
+            //     .create(true)
+            //     .append(true)
+            //     .open("./asserts/output.flv")
+            //     .unwrap();
+            // let mut bytes = BytesMut::new();
+            // bytes.put_slice(&message.message_body[..]);
+            // match file.write(&bytes) {
+            //     Ok(_) => {}
+            //     Err(err) => log::error!("Err {}", err),
+            // };
+            eventbus.publish(message.clone())
         }
     }
 }
@@ -311,14 +348,28 @@ impl VideoMessage {
     {
         if message.message_body[0] == 0x17 && message.message_body[1] == 0x00 {
             video_header_map().insert(ctx.stream_name.as_ref().unwrap().clone(), message.clone());
+            // todo 将视频文件保存在本地,为后续hlv做准备
         }
         log::trace!(
             "[RECEIVED VIDEO MESSAGE] -> VIDEO DATA LEN {}",
             chunk_data.len()
         );
-        // todo 将视频文件保存在本地,为后续hlv做准备
+
         if let Some(eventbus) = eventbus_map().get(ctx.stream_name.as_ref().unwrap()) {
-            eventbus.publish(message.clone()).await
+            // let mut file = OpenOptions::new()
+            //     .create(true)
+            //     .append(true)
+            //     .open("./asserts/output.flv")
+            //     .unwrap();
+            // let mut bytes = BytesMut::new();
+            // bytes.put_slice(&message.message_body[..]);
+            // match file.write(&bytes) {
+            //     Ok(_) => {}
+            //     Err(err) => log::error!("Err {}", err),
+            // };
+            let mut message = message.clone();
+            // message.chunk_id = 5;
+            eventbus.publish(message)
         }
     }
 }
