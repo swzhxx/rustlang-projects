@@ -24,7 +24,7 @@ use self::{
 mod chunk;
 
 pub mod handshark;
-mod message;
+pub mod message;
 
 mod read_effect;
 

@@ -247,7 +247,7 @@ impl EventExcute for SetBufferLength {
         {
             // loop
             if let Some(event_bus) = eventbus_map().get(ctx.stream_name.as_ref().unwrap()) {
-                let mut receiver = event_bus.register_receive();
+                let mut receiver = event_bus.register_receiver();
                 loop {
                     if let Ok(msg) = receiver.recv().await {
                         // log::trace!("{}   {}  ", msg.time_stamp, begine_time_delta);

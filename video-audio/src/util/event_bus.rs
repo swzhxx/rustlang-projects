@@ -16,7 +16,7 @@ where
         Self { label, tx: tx }
     }
 
-    pub fn register_receive(&self) -> broadcast::Receiver<E> {
+    pub fn register_receiver(&self) -> broadcast::Receiver<E> {
         let rx;
         rx = self.tx.subscribe();
         rx
