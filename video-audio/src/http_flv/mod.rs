@@ -7,12 +7,16 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{http_flv::flv::FlvTag, rtmp::protocol::eventbus_map, util::EventBus};
+use crate::{
+    http_flv::flv::{FlvTag, FLV_HEADER_WITH_TAG0},
+    rtmp::protocol::{audio_header_map, eventbus_map, video_header_map},
+    util::EventBus,
+};
 
 pub mod flv;
 
 pub fn start_server() -> JoinHandle<anyhow::Result<()>> {
-    let addr = "0.0.0.0:8080";
+    let addr = "0.0.0.0:8085";
     tokio::spawn(async move {
         let listener = TcpListener::bind(addr).await?;
         let addr = format!("http://{}", listener.local_addr()?);
@@ -57,8 +61,26 @@ async fn handle_accept(mut stream: TcpStream) -> anyhow::Result<()> {
     ";
 
     stream.write_all(header.as_bytes()).await?;
+
     stream.flush().await?;
+    write_chunk(&mut stream, &FLV_HEADER_WITH_TAG0).await?;
     let ctx_begin_stamp = Local::now().timestamp_millis();
+    if let Some(msg) = video_header_map().get(stream_name) {
+        log::error!("关键帧");
+        let mut msg = msg.clone();
+        msg.time_stamp = 0;
+        let flv_tag = FlvTag::try_from(msg)?;
+        write_chunk(&mut stream, flv_tag.as_ref()).await?;
+        write_chunk(&mut stream, &(flv_tag.as_ref().len() as u32).to_be_bytes()).await?;
+    };
+
+    if let Some(msg) = audio_header_map().get(stream_name) {
+        let mut msg = msg.clone();
+        msg.time_stamp = 0;
+        let flv_tag = FlvTag::try_from(msg)?;
+        write_chunk(&mut stream, flv_tag.as_ref()).await?;
+        write_chunk(&mut stream, &(flv_tag.as_ref().len() as u32).to_be_bytes()).await?;
+    };
     while let Ok(mut msg) = receiver.recv().await {
         match msg.message_type {
             crate::rtmp::protocol::message::MessageType::AUDIO_MESSAGE(_)
@@ -84,10 +106,15 @@ fn get_path(req: &str) -> Option<&str> {
 }
 
 async fn write_chunk(stream: &mut TcpStream, bytes: &[u8]) -> anyhow::Result<()> {
+    // let mut bytes = vec![];
+    // bytes.extend_from_slice(&mut bytes.len().to_be_bytes()[..]);
+    // bytes.extend_from_slice(&mut "\r\n".as_bytes());
+
     stream
         .write_all(format!("{:X}\r\n", bytes.len()).as_bytes())
         .await?;
-    stream.write_all(bytes).await?;
+    // log::trace!("{:?}", &bytes[..bytes.len().min(12)]);
+    stream.write_all(&bytes).await?;
     stream.write_all(b"\r\n").await?;
     stream.flush().await?;
     Ok(())

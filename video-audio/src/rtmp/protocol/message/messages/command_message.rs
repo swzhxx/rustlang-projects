@@ -322,7 +322,7 @@ impl Play {
         let stream_name = values[3].try_as_str().unwrap_or_default();
         ctx.stream_name = Some(stream_name.to_string());
         match eventbus_map().get(stream_name) {
-            Some(event_bus) => {}
+            Some(_) => {}
             None => {
                 eventbus_map().insert(
                     stream_name.to_string(),
