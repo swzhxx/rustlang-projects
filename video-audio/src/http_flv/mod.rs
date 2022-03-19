@@ -66,7 +66,7 @@ async fn handle_accept(mut stream: TcpStream) -> anyhow::Result<()> {
     write_chunk(&mut stream, &FLV_HEADER_WITH_TAG0).await?;
     let ctx_begin_stamp = Local::now().timestamp_millis();
     if let Some(msg) = video_header_map().get(stream_name) {
-        log::error!("关键帧");
+        log::info!("[HTTP FLV] -> key frame");
         let mut msg = msg.clone();
         msg.time_stamp = 0;
         let flv_tag = FlvTag::try_from(msg)?;
