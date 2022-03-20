@@ -61,7 +61,8 @@
     },
     "rules": {
       "space-before-function-paren": "off",
-      "indent": "off"
+      "indent": "off",
+      "camelcase": "off"
     },
     "overrides": [
       {

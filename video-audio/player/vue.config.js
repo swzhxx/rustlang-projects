@@ -19,7 +19,8 @@ module.exports = defineConfig({
       new WasmPackPlugin({
         crateDirectory: path.resolve(__dirname, './../image-process'),
         outDir: path.resolve(__dirname, './pkg'),
-        outName: 'image-process'
+        outName: 'image-process',
+        forceMode: 'release'
       }),
       new webpack.ProvidePlugin({
         TextDecoder: ['text-encoding', 'TextDecoder'],
