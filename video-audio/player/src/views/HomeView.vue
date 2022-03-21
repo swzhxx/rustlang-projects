@@ -9,7 +9,8 @@
   enum Processer {
     Unknown = 0,
     GrayScale = 1,
-    GpuGrayScale = 2
+    GpuGrayScale = 2,
+    GaussianBlur = 3
   }
 
   type CanvasStyle = {
@@ -91,10 +92,15 @@
         canvas.value!.getContext('2d')!.putImageData(imageData, 0, 0)
       })
 
-      let gpuGrayScale = (imageData: ImageData) => {
-        console.log('UnInit')
-      }
+      const gpuGrayScale = perfomanceFn((imageData: ImageData) => {
+        const canvas = canvas3D.value!
+        imageProcess.gpuGrayScale(imageData, canvas.getContext('webgl')!)
+      })
 
+      const gaussianBlur = perfomanceFn((imageData: ImageData) => {
+        const canvas = canvas3D.value!
+        imageProcess.gaussianBlur(imageData, canvas.getContext('webgl')!, 13)
+      })
       const dispatchImageProcessing = (
         imageData: ImageData,
         processer: Processer
@@ -109,6 +115,10 @@
             gpuGrayScale(imageData)
             break
           }
+          case Processer.GaussianBlur: {
+            gaussianBlur(imageData)
+            break
+          }
         }
       }
       onMounted(() => {
@@ -120,86 +130,86 @@
           hasVideo: true,
           isLive: true,
           type: 'flv',
-          url: `http://192.168.1.111:8085/${currentRoute.params.streamName}`
+          url: `http://127.0.0.1:8085/${currentRoute.params.streamName}`
         })
         flvPlayer.attachMediaElement(videoElement)
         flvPlayer.load()
         flvPlayer.play()
 
-        gpuGrayScale = (() => {
-          return perfomanceFn((imageData: ImageData) => {
-            const canvas = canvas3D.value!
-            const gl = canvas.getContext('webgl')!
-            const VSHADER_SOURCE = `
-            attribute vec2 a_TexCoord;
-            attribute vec4 a_Position;
-            varying vec2 v_TexCoord;
-            void main() {
-              gl_Position = a_Position;
-              v_TexCoord = a_TexCoord;
-            }
-          `
-            const FSHADER_SOURCE = `
-            precision mediump float;
-            uniform sampler2D u_Sampler;
-            varying vec2 v_TexCoord;
-            void main(){
-              vec4 color = texture2D(u_Sampler,v_TexCoord);
-              float gray = color.r * 0.3 + color.g * 0.59 + color.b * 0.11;
-              gl_FragColor = vec4(gray,gray,gray,color.a);
-            }
-          `
-            const program = initShaders(gl, VSHADER_SOURCE, FSHADER_SOURCE)
-            if (!program) {
-              return
-            }
-            const verticesTexCoords = new Float32Array([
-              -1, 1, 0, 1, -1, -1, 0, 0, 1, 1, 1, 1, 1, -1, 1, 0
-            ])
-            const vertexTexCoordBuffer = gl.createBuffer()
+        // gpuGrayScale = (() => {
+        //   return perfomanceFn((imageData: ImageData) => {
+        //     const canvas = canvas3D.value!
+        //     const gl = canvas.getContext('webgl')!
+        //     const VSHADER_SOURCE = `
+        //     attribute vec2 a_TexCoord;
+        //     attribute vec4 a_Position;
+        //     varying vec2 v_TexCoord;
+        //     void main() {
+        //       gl_Position = a_Position;
+        //       v_TexCoord = a_TexCoord;
+        //     }
+        //   `
+        //     const FSHADER_SOURCE = `
+        //     precision mediump float;
+        //     uniform sampler2D u_Sampler;
+        //     varying vec2 v_TexCoord;
+        //     void main(){
+        //       vec4 color = texture2D(u_Sampler,v_TexCoord);
+        //       float gray = color.r * 0.3 + color.g * 0.59 + color.b * 0.11;
+        //       gl_FragColor = vec4(gray,gray,gray,color.a);
+        //     }
+        //   `
+        //     const program = initShaders(gl, VSHADER_SOURCE, FSHADER_SOURCE)
+        //     if (!program) {
+        //       return
+        //     }
+        //     const verticesTexCoords = new Float32Array([
+        //       -1, 1, 0, 1, -1, -1, 0, 0, 1, 1, 1, 1, 1, -1, 1, 0
+        //     ])
+        //     const vertexTexCoordBuffer = gl.createBuffer()
 
-            // a_Position enable
-            gl.bindBuffer(gl.ARRAY_BUFFER, vertexTexCoordBuffer)
-            gl.bufferData(gl.ARRAY_BUFFER, verticesTexCoords, gl.STATIC_DRAW)
-            const FSIZE = verticesTexCoords.BYTES_PER_ELEMENT
-            const a_Position = gl.getAttribLocation(program, 'a_Position')
-            gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * 4, 0)
-            gl.enableVertexAttribArray(a_Position)
-            // a_TexCoord
-            const a_TexCoord = gl.getAttribLocation(program, 'a_TexCoord')
-            gl.vertexAttribPointer(
-              a_TexCoord,
-              2,
-              gl.FLOAT,
-              false,
-              FSIZE * 4,
-              FSIZE * 2
-            )
+        //     // a_Position enable
+        //     gl.bindBuffer(gl.ARRAY_BUFFER, vertexTexCoordBuffer)
+        //     gl.bufferData(gl.ARRAY_BUFFER, verticesTexCoords, gl.STATIC_DRAW)
+        //     const FSIZE = verticesTexCoords.BYTES_PER_ELEMENT
+        //     const a_Position = gl.getAttribLocation(program, 'a_Position')
+        //     gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * 4, 0)
+        //     gl.enableVertexAttribArray(a_Position)
+        //     // a_TexCoord
+        //     const a_TexCoord = gl.getAttribLocation(program, 'a_TexCoord')
+        //     gl.vertexAttribPointer(
+        //       a_TexCoord,
+        //       2,
+        //       gl.FLOAT,
+        //       false,
+        //       FSIZE * 4,
+        //       FSIZE * 2
+        //     )
 
-            gl.enableVertexAttribArray(a_TexCoord)
-            gl.bindBuffer(gl.ARRAY_BUFFER, null)
-            const texture = gl.createTexture()
-            const u_Sampler = gl.getUniformLocation(program, 'u_Sampler')
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
-            gl.activeTexture(gl.TEXTURE0)
-            gl.bindTexture(gl.TEXTURE_2D, texture)
+        //     gl.enableVertexAttribArray(a_TexCoord)
+        //     gl.bindBuffer(gl.ARRAY_BUFFER, null)
+        //     const texture = gl.createTexture()
+        //     const u_Sampler = gl.getUniformLocation(program, 'u_Sampler')
+        //     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+        //     gl.activeTexture(gl.TEXTURE0)
+        //     gl.bindTexture(gl.TEXTURE_2D, texture)
 
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-            gl.texImage2D(
-              gl.TEXTURE_2D,
-              0,
-              gl.RGBA,
-              gl.RGBA,
-              gl.UNSIGNED_BYTE,
-              imageData
-            )
-            gl.uniform1i(u_Sampler, 0)
-            gl.clear(gl.COLOR_BUFFER_BIT)
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-          })
-        })()
+        //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        //     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        //     gl.texImage2D(
+        //       gl.TEXTURE_2D,
+        //       0,
+        //       gl.RGBA,
+        //       gl.RGBA,
+        //       gl.UNSIGNED_BYTE,
+        //       imageData
+        //     )
+        //     gl.uniform1i(u_Sampler, 0)
+        //     gl.clear(gl.COLOR_BUFFER_BIT)
+        //     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        //   })
+        // })()
 
         imageProcessing()
       })
@@ -231,7 +241,10 @@
               ref={canvas}
             ></canvas>
             <canvas
-              v-show={data.processer === Processer.GpuGrayScale}
+              v-show={
+                data.processer === Processer.GpuGrayScale ||
+                data.processer === Processer.GaussianBlur
+              }
               style={{
                 width: canvasStyle.width + 'px',
                 height: canvasStyle.height + 'px'
@@ -255,6 +268,13 @@
             onClick={() => setMode(Processer.GpuGrayScale)}
           >
             ShaderGrayScale
+          </button>
+
+          <button
+            style='margin-left:5px'
+            onClick={() => setMode(Processer.GaussianBlur)}
+          >
+            GaussianBlur
           </button>
         </div>
       ]
