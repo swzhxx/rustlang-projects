@@ -40,6 +40,7 @@ features = [
   'WebGlUniformLocation',
   "console",
   "WebGlFramebuffer",
+  "WebGlRenderbuffer",
 ]
 version = "0.3.56"
 

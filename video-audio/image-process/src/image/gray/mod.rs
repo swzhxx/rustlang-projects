@@ -118,10 +118,10 @@ pub fn gpu_gray_scale(image_data: &ImageData, gl: &WebGlRenderingContext) -> Res
         WebGlRenderingContext::UNSIGNED_BYTE,
         image_data,
     )?;
-    gl.uniform1i(u_sampler.as_ref(), 0);
+    // gl.uniform1i(u_sampler.as_ref(), 0);
     gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
     gl.draw_arrays(WebGlRenderingContext::TRIANGLE_STRIP, 0, 4);
-  
+   
     Ok(())
 }
 

@@ -5,11 +5,14 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
 use web_sys::{ImageData, WebGlRenderingContext};
 
-use crate::{image::vertices_attribute, utils::GlContext};
+use crate::{
+    image::vertices_attribute,
+    utils::{init_frame_buffer, GlContext},
+};
 
 fn gaussian(x: i32, sigma: f32) -> f32 {
-    let temp = 1. / (PI * 2. * sigma.powi(2));
-    temp * ((-(x as f32).powi(2)) / (2. * sigma.powi(2))).exp()
+    let temp = 1. / ((PI * 2.).sqrt() * sigma);
+    temp * (-((x as f32).powi(2)) / (2. * sigma.powi(2))).exp()
 }
 
 #[wasm_bindgen(js_name=gaussianBlur)]
@@ -18,13 +21,13 @@ pub fn gaussian_blur(
     ctx: &WebGlRenderingContext,
     window_size: usize,
 ) -> Result<(), JsValue> {
-    let sigma = 0.3 * ((window_size as f32) * 0.5 - 1.) * 0.8;
+    let sigma = 0.3 * ((window_size as f32) * 0.5 - 1.) + 0.8;
     let mut kernel: Vec<f32> = vec![];
     let centre = window_size / 2;
     for i in 0..window_size {
         kernel.push(gaussian(i as i32 - centre as i32, sigma))
     }
-    // web_sys::console::log_1(&format!("{:?}", kernel).into());
+    web_sys::console::log_1(&format!("{:?}", kernel).into());
     let mut gl_context = GlContext::new(ctx);
 
     gl_context.compile_shader(
@@ -52,6 +55,11 @@ pub fn gaussian_blur(
 
     gl_context.link_program()?;
     ctx.use_program(gl_context.program.as_ref());
+    let (frame_buffer, frame_buffer_texture) = init_frame_buffer(
+        ctx,
+        image_data.width() as usize,
+        image_data.height() as usize,
+    )?;
 
     let buffer = ctx.create_buffer().ok_or("create buffer err".to_string())?;
     ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&buffer));
@@ -86,60 +94,47 @@ pub fn gaussian_blur(
         file_size * 2,
     );
     ctx.enable_vertex_attrib_array(a_tex_coord as u32);
-
-    ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, None);
-
+    // ctx.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, None);
     let u_texture_size = ctx
         .get_uniform_location(gl_context.program.as_ref().unwrap(), "u_TextureSize")
         .unwrap();
-
     let u_horizontal = ctx
         .get_uniform_location(gl_context.program.as_ref().unwrap(), "u_Horizontal")
         .unwrap();
-
     ctx.uniform2f(
         Some(&u_texture_size),
         image_data.width() as f32,
         image_data.height() as f32,
     );
-
     ctx.uniform1i(Some(&u_horizontal), 1);
-
     let u_kernel = ctx
         .get_uniform_location(gl_context.program.as_ref().unwrap(), "u_Kernel")
         .unwrap();
-
     ctx.uniform1fv_with_f32_array(Some(&u_kernel), &kernel);
-
     let texture = ctx
         .create_texture()
         .ok_or("create texture err".to_string())?;
     let u_sampler = ctx
         .get_uniform_location(gl_context.program.as_ref().unwrap(), "u_Sampler")
         .ok_or("get u_Sampler uniform err".to_string())?;
-
     ctx.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 1);
     ctx.active_texture(WebGlRenderingContext::TEXTURE0);
     ctx.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture));
-
     ctx.tex_parameteri(
         WebGlRenderingContext::TEXTURE_2D,
         WebGlRenderingContext::TEXTURE_MIN_FILTER,
         WebGlRenderingContext::LINEAR as i32,
     );
-
     ctx.tex_parameteri(
         WebGlRenderingContext::TEXTURE_2D,
         WebGlRenderingContext::TEXTURE_WRAP_T,
         WebGlRenderingContext::CLAMP_TO_EDGE as i32,
     );
-
     ctx.tex_parameteri(
         WebGlRenderingContext::TEXTURE_2D,
         WebGlRenderingContext::TEXTURE_WRAP_S,
         WebGlRenderingContext::CLAMP_TO_EDGE as i32,
     );
-
     ctx.tex_image_2d_with_u32_and_u32_and_image_data(
         WebGlRenderingContext::TEXTURE_2D,
         0,
@@ -148,27 +143,24 @@ pub fn gaussian_blur(
         WebGlRenderingContext::UNSIGNED_BYTE,
         image_data,
     )?;
-
     ctx.uniform1i(Some(&u_sampler), 0);
 
-    let frame_buffer = ctx.create_framebuffer().unwrap();
     ctx.bind_framebuffer(WebGlRenderingContext::FRAMEBUFFER, Some(&frame_buffer));
-    ctx.framebuffer_texture_2d(
-        WebGlRenderingContext::FRAMEBUFFER,
-        WebGlRenderingContext::COLOR_ATTACHMENT0,
+    ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+    ctx.draw_arrays(WebGlRenderingContext::TRIANGLE_STRIP, 0, 4);
+    ctx.bind_texture(WebGlRenderingContext::TEXTURE_2D, None);
+    ctx.bind_framebuffer(WebGlRenderingContext::FRAMEBUFFER, None);
+
+    ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
+    ctx.uniform1i(Some(&u_horizontal), 0);
+    ctx.active_texture(WebGlRenderingContext::TEXTURE0);
+    ctx.bind_texture(
         WebGlRenderingContext::TEXTURE_2D,
-        Some(&texture),
-        0,
+        Some(&frame_buffer_texture),
     );
 
-    ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
     ctx.draw_arrays(WebGlRenderingContext::TRIANGLE_STRIP, 0, 4);
 
-    ctx.uniform1i(Some(&u_horizontal), 0);
-    ctx.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
-    ctx.draw_arrays(WebGlRenderingContext::TRIANGLE_STRIP, 0, 4);
-
-    // ctx.bind_framebuffer(WebGlRenderingContext::FRAMEBUFFER, None);
     Ok(())
 }
 
