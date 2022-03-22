@@ -99,7 +99,7 @@
 
       const gaussianBlur = perfomanceFn((imageData: ImageData) => {
         const canvas = canvas3D.value!
-        imageProcess.gaussianBlur(imageData, canvas.getContext('webgl')!, 13)
+        imageProcess.gaussianBlur(imageData, canvas.getContext('webgl')!, 51)
       })
       const dispatchImageProcessing = (
         imageData: ImageData,
