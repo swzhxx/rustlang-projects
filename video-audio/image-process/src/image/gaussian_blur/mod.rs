@@ -27,7 +27,7 @@ pub fn gaussian_blur(
     for i in 0..window_size {
         kernel.push(gaussian(i as i32 - centre as i32, sigma))
     }
-    web_sys::console::log_1(&format!("{:?}", kernel).into());
+    // web_sys::console::log_1(&format!("{:?}", kernel).into());
     let mut gl_context = GlContext::new(ctx);
 
     gl_context.compile_shader(
