@@ -58,6 +58,15 @@ impl<'a> GlContext<'a> {
         self.ctx
             .attach_shader(&program, self.frag_shader.as_ref().unwrap());
         self.ctx.link_program(&program);
+        if !self
+            .ctx
+            .get_program_parameter(&program, WebGlRenderingContext::LINK_STATUS)
+            .as_bool()
+            .unwrap_or(false)
+        {
+            let info = self.ctx.get_program_info_log(&program);
+            return Err(format!("link program err {:?}", info));
+        }
         self.program = Some(program);
         Ok(())
     }

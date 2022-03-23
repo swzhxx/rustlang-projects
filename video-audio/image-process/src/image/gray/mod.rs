@@ -89,7 +89,7 @@ pub fn gpu_gray_scale(image_data: &ImageData, gl: &WebGlRenderingContext) -> Res
     let texture = gl
         .create_texture()
         .ok_or("failed create texture".to_string())?;
-    let u_sampler = gl.get_uniform_location(gl_context.program.as_ref().unwrap(), "u_Sampler");
+    // let u_sampler = gl.get_uniform_location(gl_context.program.as_ref().unwrap(), "u_Sampler");
     gl.pixel_storei(WebGlRenderingContext::UNPACK_FLIP_Y_WEBGL, 1);
     gl.active_texture(WebGlRenderingContext::TEXTURE0);
     gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, Some(&texture));
