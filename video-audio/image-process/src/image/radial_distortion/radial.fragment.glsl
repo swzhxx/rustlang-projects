@@ -4,5 +4,9 @@ uniform float u_Dist;
 varying vec2 v_TexCoord;
 
 void main() {
-  gl_FragColor = texture2D(u_Sampler, v_TexCoord);
+  vec2 coord = v_TexCoord - vec2(0.5, 0.5);
+  float len = length(coord);
+  coord = u_Dist * len * coord;
+  coord = coord + vec2(0.5, 0.5);
+  gl_FragColor = texture2D(u_Sampler, coord);
 }

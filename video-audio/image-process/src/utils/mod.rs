@@ -65,14 +65,14 @@ pub fn init_frame_buffer(
         WebGlRenderingContext::CLAMP_TO_EDGE as i32,
     );
 
-    let depth_buffer = gl.create_renderbuffer();
-    gl.bind_renderbuffer(WebGlRenderingContext::RENDERBUFFER, depth_buffer.as_ref());
-    gl.renderbuffer_storage(
-        WebGlRenderingContext::RENDERBUFFER,
-        WebGlRenderingContext::DEPTH_COMPONENT16,
-        offscreen_width as i32,
-        offsrceen_height as i32,
-    );
+    // let depth_buffer = gl.create_renderbuffer();
+    // gl.bind_renderbuffer(WebGlRenderingContext::RENDERBUFFER, depth_buffer.as_ref());
+    // gl.renderbuffer_storage(
+    //     WebGlRenderingContext::RENDERBUFFER,
+    //     WebGlRenderingContext::DEPTH_COMPONENT16,
+    //     offscreen_width as i32,
+    //     offsrceen_height as i32,
+    // );
 
     gl.bind_framebuffer(WebGlRenderingContext::FRAMEBUFFER, frame_buffer.as_ref());
     gl.framebuffer_texture_2d(
@@ -82,15 +82,15 @@ pub fn init_frame_buffer(
         texture.as_ref(),
         0,
     );
-    gl.framebuffer_renderbuffer(
-        WebGlRenderingContext::RENDERBUFFER,
-        WebGlRenderingContext::DEPTH_ATTACHMENT,
-        WebGlRenderingContext::RENDERBUFFER,
-        depth_buffer.as_ref(),
-    );
-    
+    // gl.framebuffer_renderbuffer(
+    //     WebGlRenderingContext::RENDERBUFFER,
+    //     WebGlRenderingContext::DEPTH_ATTACHMENT,
+    //     WebGlRenderingContext::RENDERBUFFER,
+    //     depth_buffer.as_ref(),
+    // );
+
     gl.bind_framebuffer(WebGlRenderingContext::FRAMEBUFFER, None);
     gl.bind_texture(WebGlRenderingContext::TEXTURE_2D, None);
-    gl.bind_renderbuffer(WebGlRenderingContext::RENDERBUFFER, None);
+    // gl.bind_renderbuffer(WebGlRenderingContext::RENDERBUFFER, None);
     Ok((frame_buffer.unwrap(), texture.unwrap()))
 }
