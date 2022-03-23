@@ -10,7 +10,10 @@
     Unknown = 0,
     GrayScale = 1,
     GpuGrayScale = 2,
-    GaussianBlur = 3
+    GaussianBlur = 3,
+    Twist = 4,
+    RadialDistortion = 5,
+    Pixelate = 6
   }
 
   type CanvasStyle = {
@@ -101,6 +104,26 @@
         const canvas = canvas3D.value!
         imageProcess.gaussianBlur(imageData, canvas.getContext('webgl')!, 51)
       })
+
+      const twist = perfomanceFn((imageData: ImageData) => {
+        const canvas = canvas3D.value!
+        imageProcess.twist(imageData, canvas.getContext('webgl')!, -Math.PI / 2)
+      })
+
+      const radialDistortion = perfomanceFn((imageData: ImageData) => {
+        const canvas = canvas3D.value!
+        imageProcess.radialDistortion(
+          imageData,
+          canvas.getContext('webgl')!,
+          1.2
+        )
+      })
+
+      const pixelate = perfomanceFn((imageData: ImageData) => {
+        const canvas = canvas3D.value!
+        imageProcess.pixelate(imageData, canvas.getContext('webgl')!)
+      })
+
       const dispatchImageProcessing = (
         imageData: ImageData,
         processer: Processer
@@ -117,6 +140,18 @@
           }
           case Processer.GaussianBlur: {
             gaussianBlur(imageData)
+            break
+          }
+          case Processer.Twist: {
+            twist(imageData)
+            break
+          }
+          case Processer.RadialDistortion: {
+            radialDistortion(imageData)
+            break
+          }
+          case Processer.Pixelate: {
+            pixelate(imageData)
             break
           }
         }
@@ -243,7 +278,10 @@
             <canvas
               v-show={
                 data.processer === Processer.GpuGrayScale ||
-                data.processer === Processer.GaussianBlur
+                data.processer === Processer.GaussianBlur ||
+                data.processer === Processer.Twist ||
+                data.processer === Processer.RadialDistortion ||
+                data.processer === Processer.Pixelate
               }
               style={{
                 width: canvasStyle.width + 'px',
@@ -275,6 +313,30 @@
             onClick={() => setMode(Processer.GaussianBlur)}
           >
             GaussianBlur
+          </button>
+          <button
+            style='margin-left:5px'
+            onClick={() => {
+              setMode(Processer.Twist)
+            }}
+          >
+            Twist
+          </button>
+          <button
+            style='margin-left:5px'
+            onClick={() => {
+              setMode(Processer.RadialDistortion)
+            }}
+          >
+            RadialDistortion
+          </button>
+          <button
+            style='margin-left:5px'
+            onClick={() => {
+              setMode(Processer.Pixelate)
+            }}
+          >
+            Pixel
           </button>
         </div>
       ]
