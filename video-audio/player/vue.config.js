@@ -20,7 +20,7 @@ module.exports = defineConfig({
         crateDirectory: path.resolve(__dirname, './../image-process'),
         outDir: path.resolve(__dirname, './pkg'),
         outName: 'image-process',
-        forceMode: 'development'
+        forceMode: 'release'
       }),
       new webpack.ProvidePlugin({
         TextDecoder: ['text-encoding', 'TextDecoder'],
