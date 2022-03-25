@@ -6,6 +6,9 @@
   import flvjs from 'flv.js'
   import { perfomanceFn } from '@/utils/index'
   import { initShaders } from '@/utils/webgl'
+  import * as tf from '@tensorflow/tfjs'
+  import '@tensorflow/tfjs-backend-webgl'
+  const cocoSsd = require('@tensorflow-models/coco-ssd')
   enum Processer {
     Unknown = 0,
     GrayScale = 1,
@@ -13,7 +16,8 @@
     GaussianBlur = 3,
     Twist = 4,
     RadialDistortion = 5,
-    Pixelate = 6
+    Pixelate = 6,
+    YOLO = 7
   }
 
   type CanvasStyle = {
@@ -26,6 +30,40 @@
     processer: Processer
   }
 
+  // const yoloLoad = async () => {
+  //   tf.setBackend('webgl')
+  //   const model = await cocoSsd.load({
+  //     // modelUrl: './best_web_model/model.json'
+  //   })
+
+  //   return perfomanceFn(
+  //     async (imageData: ImageData, ctx: CanvasRenderingContext2D) => {
+  //       const predictions = await model.detect(imageData)
+  //       ctx.putImageData(imageData, 0, 0)
+  //       ctx.font = '10px Arial'
+  //       console.log('predictions', predictions.length)
+  //       for (let i = 0; i < predictions.length; i++) {
+  //         ctx.beginPath()
+  //         ctx.rect(
+  //           predictions[i].bbox[0],
+  //           predictions[i].bbox[1],
+  //           predictions[i].bbox[2],
+  //           predictions[i].bbox[3]
+  //         )
+  //         ctx.lineWidth = 5
+  //         ctx.strokeStyle = 'red'
+  //         ctx.fillStyle = 'red'
+  //         ctx.stroke()
+  //         ctx.fillText(
+  //           predictions[i].score.toFixed(3) + ' ' + predictions[i].class,
+  //           predictions[i].bbox[0],
+  //           predictions[i].bbox[1] > 10 ? predictions[i].bbox[1] - 5 : 10
+  //         )
+  //       }
+  //     }
+  //   )
+  // }
+
   export default defineComponent({
     name: 'HomeView',
     setup(props) {
@@ -33,6 +71,7 @@
       const canvas = ref<HTMLCanvasElement | null>(null)
 
       const canvas3D = ref<HTMLCanvasElement | null>(null)
+      // const yoloComplete = ref<boolean>(true)
       const data = reactive<Data>({
         imageData: null,
         processer: Processer.Unknown
@@ -99,7 +138,10 @@
         const canvas = canvas3D.value!
         imageProcess.gpuGrayScale(imageData, canvas.getContext('webgl')!)
       })
-
+      // let yolo: any
+      // yoloLoad().then((call) => {
+      //   yolo = call
+      // })
       const gaussianBlur = perfomanceFn((imageData: ImageData) => {
         const canvas = canvas3D.value!
         imageProcess.gaussianBlur(imageData, canvas.getContext('webgl')!, 51)
@@ -123,7 +165,6 @@
         const canvas = canvas3D.value!
         imageProcess.pixelate(imageData, canvas.getContext('webgl')!)
       })
-
       const dispatchImageProcessing = (
         imageData: ImageData,
         processer: Processer
@@ -152,6 +193,19 @@
           }
           case Processer.Pixelate: {
             pixelate(imageData)
+            break
+          }
+          case Processer.YOLO: {
+            // const ctx = canvas.value!.getContext('2d')!
+            // if (yolo) {
+            //   if (yoloComplete.value === false) {
+            //     return
+            //   }
+            //   yoloComplete.value = false
+            //   yolo(imageData, ctx).finally(() => {
+            //     yoloComplete.value = true
+            //   })
+            // }
             break
           }
         }
@@ -266,7 +320,8 @@
               height={canvasStyle.videoHeight}
               v-show={
                 data.processer === Processer.GrayScale ||
-                data.processer === Processer.Unknown
+                data.processer === Processer.Unknown ||
+                data.processer === Processer.YOLO
               }
               style={{
                 width: canvasStyle.width + 'px',
