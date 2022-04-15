@@ -1,6 +1,7 @@
 use env_logger::Env;
 use rtmp::start_server;
 mod http_flv;
+mod protocol;
 mod rtmp;
 mod util;
 
