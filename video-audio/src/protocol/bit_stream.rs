@@ -24,12 +24,12 @@ impl<'a> BitStream<'a> {
         let mut r = 0;
         {
             let num = self.bits_left.get();
-            self.bits_left.set(num)
+            self.bits_left.set(num - 1)
         }
         r = r >> (self.bits_left.get()) & 0x01;
         if self.bits_left.get() == 0 {
             self.pos.set(self.pos.get() + 1);
-            self.bits_left.set(0);
+            self.bits_left.set(8);
         }
         r
     }
@@ -61,5 +61,9 @@ impl<'a> BitStream<'a> {
             r = -(r / 2);
         }
         r
+    }
+
+    pub fn is_aligned(&self) -> bool {
+        self.bits_left.get() == 8
     }
 }
