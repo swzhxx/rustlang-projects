@@ -1,7 +1,7 @@
 use super::bit_stream::BitStream;
 
 #[derive(Default)]
-pub struct SeqParamter {
+pub struct SeqParameter {
     profile_idc: u8,
     /*---编码级别的制约条件START---*/
     constraint_sec0_flag: u8,
@@ -41,7 +41,7 @@ pub struct SeqParamter {
     vui_parameters: Option<VuiParameters>,
 }
 
-impl From<&BitStream<'_>> for SeqParamter {
+impl From<&BitStream<'_>> for SeqParameter {
     fn from(bit_stream: &BitStream) -> Self {
         let mut sqs = Self::default();
         sqs.profile_idc = bit_stream.get_one_bit();

@@ -1,3 +1,4 @@
 pub mod bit_stream;
 pub mod nalu;
-pub mod seq_paramter;
+pub mod pic_parameter;
+pub mod seq_parameter;
