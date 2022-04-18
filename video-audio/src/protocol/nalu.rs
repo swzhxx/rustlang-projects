@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use std::io::BufReader;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum NaluType {
     NALU_TYPE_SLICE = 1,
     NALU_TYPE_DPA = 2,
@@ -66,10 +66,10 @@ impl TryFrom<u8> for NaluType {
 // }
 
 pub struct Nalu<'a> {
-    forbidden_zero_bit: u8,
-    nal_ref_idc: u8,
-    nal_unit_type: NaluType,
-    rbsp: &'a [u8],
+    pub forbidden_zero_bit: u8,
+    pub nal_ref_idc: u8,
+    pub nal_unit_type: NaluType,
+    pub rbsp: &'a [u8],
 }
 
 impl<'a, 'b> TryFrom<&'b [u8]> for Nalu<'a>

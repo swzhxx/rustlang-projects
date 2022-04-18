@@ -2,29 +2,29 @@ use super::bit_stream::BitStream;
 
 #[derive(Default)]
 pub struct PicParameter {
-    pic_parameter_set_id: usize,
-    seq_parameter_set_id: usize,
-    entropy_coding_mode_flag: u8,
-    pic_order_present_flag: u8,
-    num_slice_groups_minus1: usize,
-    slice_group_map_type: usize,
-    run_length_minus1: Vec<usize>,
-    top_left: Vec<usize>,
-    bottom_right: Vec<usize>,
-    slice_group_change_direction_flag: u8,
-    slice_group_change_rate_minus1: usize,
-    pic_size_in_map_units_minus: usize,
-    slice_group_id: Vec<u8>,
-    num_ref_idx_10_active_minus1: usize,
-    num_ref_idx_11_active_minus1: usize,
-    weighted_pred_flag: u8,
-    weighted_bipred_dic: u8,
-    pic_init_qp_minus26: i64,
-    pic_init_qs_minus26: i64,
-    chroma_qp_index_offset: i64,
-    deblocking_filter_control_present_flag: u8,
-    constrained_intra_pred_flag: u8,
-    redundant_pic_cnt_present_flag: u8,
+    pub pic_parameter_set_id: usize,
+    pub seq_parameter_set_id: usize,
+    pub entropy_coding_mode_flag: u8,
+    pub pic_order_present_flag: u8,
+    pub num_slice_groups_minus1: usize,
+    pub slice_group_map_type: usize,
+    pub run_length_minus1: Vec<usize>,
+    pub top_left: Vec<usize>,
+    pub bottom_right: Vec<usize>,
+    pub slice_group_change_direction_flag: u8,
+    pub slice_group_change_rate_minus1: usize,
+    pub pic_size_in_map_units_minus: usize,
+    pub slice_group_id: Vec<u8>,
+    pub num_ref_idx_10_active_minus1: usize,
+    pub num_ref_idx_11_active_minus1: usize,
+    pub weighted_pred_flag: u8,
+    pub weighted_bipred_dic: u8,
+    pub pic_init_qp_minus26: i64,
+    pub pic_init_qs_minus26: i64,
+    pub chroma_qp_index_offset: i64,
+    pub deblocking_filter_control_present_flag: u8,
+    pub constrained_intra_pred_flag: u8,
+    pub redundant_pic_cnt_present_flag: u8,
 }
 
 impl From<&BitStream<'_>> for PicParameter {
@@ -81,7 +81,7 @@ impl From<&BitStream<'_>> for PicParameter {
         pps.constrained_intra_pred_flag = bs.get_one_bit();
         pps.redundant_pic_cnt_present_flag = bs.get_one_bit();
 
-        let rbsp_stop_one_bit = bs.get_one_bit();
+        let _rbsp_stop_one_bit = bs.get_one_bit();
         while !bs.is_aligned() {
             bs.get_one_bit();
         }

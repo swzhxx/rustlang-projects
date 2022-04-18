@@ -2,43 +2,43 @@ use super::bit_stream::BitStream;
 
 #[derive(Default)]
 pub struct SeqParameter {
-    profile_idc: u8,
+    pub profile_idc: u8,
     /*---编码级别的制约条件START---*/
-    constraint_sec0_flag: u8,
-    constraint_sec1_flag: u8,
-    constraint_set2_flag: u8,
-    reserved_zero_5bits: u8,
+    pub constraint_sec0_flag: u8,
+    pub constraint_sec1_flag: u8,
+    pub constraint_set2_flag: u8,
+    pub reserved_zero_5bits: u8,
     /*---编码级别的制约条件END-----*/
-    level_idc: u8,
-    seq_parameter_set_id: usize,
-    log2_max_frame_num_minus4: usize,
-    pic_order_cnt_type: usize,
+    pub level_idc: u8,
+    pub seq_parameter_set_id: usize,
+    pub log2_max_frame_num_minus4: usize,
+    pub pic_order_cnt_type: usize,
     /*---用来计算POC的句法元素START--- */
-    log2_max_pic_order_cnt_lsb_minus4: usize,
-    delta_pic_order_always_zero_flag: u8,
-    offset_for_non_ref_pic: i64,
-    offset_for_top_bottom_field: i64,
-    num_ref_frames_in_pic_order_cnt_type: i64,
-    offset_for_ref_frame: Vec<i64>,
+    pub log2_max_pic_order_cnt_lsb_minus4: usize,
+    pub delta_pic_order_always_zero_flag: u8,
+    pub offset_for_non_ref_pic: i64,
+    pub offset_for_top_bottom_field: i64,
+    pub num_ref_frames_in_pic_order_cnt_type: i64,
+    pub offset_for_ref_frame: Vec<i64>,
     /*---用来计算POC的句法元素END-------- */
-    num_ref_frames: usize,
-    gaps_in_frame_num_value_allowed_flag: u8,
+    pub num_ref_frames: usize,
+    pub gaps_in_frame_num_value_allowed_flag: u8,
     /*----图像宽高相关START--------- */
-    pic_width_in_mbs_minus1: usize,
-    pic_height_in_map_units_minus1: usize,
-    frame_mbs_only_flag: u8,
-    mb_adaptive_frame_field_flag: u8,
+    pub pic_width_in_mbs_minus1: usize,
+    pub pic_height_in_map_units_minus1: usize,
+    pub frame_mbs_only_flag: u8,
+    pub mb_adaptive_frame_field_flag: u8,
     /*----图像宽高相关相关END---------- */
-    direct_8x8_interface_flag: u8,
+    pub direct_8x8_interface_flag: u8,
     /*---解码后图像剪裁的几个句法元素START---*/
-    frame_cropping_flag: u8,
-    frame_crop_left_offset: usize,
-    frame_crop_right_offset: usize,
-    frame_crop_top_offset: usize,
-    frame_crop_bottom_offset: usize,
+    pub frame_cropping_flag: u8,
+    pub frame_crop_left_offset: usize,
+    pub frame_crop_right_offset: usize,
+    pub frame_crop_top_offset: usize,
+    pub frame_crop_bottom_offset: usize,
     /*---解码后图像剪裁的几个句法元素END---*/
-    vui_parameters_present_flag: u8,
-    vui_parameters: Option<VuiParameters>,
+    pub vui_parameters_present_flag: u8,
+    pub vui_parameters: Option<VuiParameters>,
 }
 
 impl From<&BitStream<'_>> for SeqParameter {
