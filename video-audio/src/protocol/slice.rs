@@ -7,16 +7,6 @@ use super::{
     seq_parameter::SeqParameter,
 };
 
-// #[derive(Debug, PartialEq, PartialOrd)]
-// pub enum SliceType {
-//     P = 0,
-//     B = 1
-//     I = 2
-//     SP = 3
-//     SI = 4
-
-// }
-
 #[derive(Default)]
 pub struct SliceHeader {
     first_mb_in_slice: usize,
@@ -95,3 +85,46 @@ impl SliceHeader {
         slice_header
     }
 }
+
+pub enum SliceLayer {
+    SliceWithoutPartitioning(SliceWithoutPartitioning),
+    SliceA(SliceA),
+    SliceB(SliceB),
+    SliceC(SliceC),
+}
+
+#[derive(Default)]
+pub struct SliceWithoutPartitioning {
+    slice_header: SliceHeader,
+    slice_data: SliceData,
+}
+impl SliceWithoutPartitioning {
+    fn new(bs: &BitStream, nalu_type: NaluType) -> SliceWithoutPartitioning {
+        todo!()
+    }
+}
+
+#[derive(Default)]
+pub struct SliceA {
+    slice_id: usize,
+    slice_data: SliceData,
+}
+
+#[derive(Default)]
+pub struct SliceB {
+    slice_id: usize,
+    redundant_pic_cnt: usize,
+    slice_data: SliceData,
+}
+#[derive(Default)]
+pub struct SliceC {
+    slice_id: usize,
+    redundant_pic_nat: usize,
+    slice_data: SliceData,
+}
+
+#[derive(Default)]
+pub struct SliceData {}
+
+#[derive(Default)]
+pub struct Slice {}
