@@ -1,10 +1,10 @@
-[workspace]
-members = ["flappy_dragon", "rusty-roguelike", "playerecs"]
 [package]
 edition = "2021"
-name = "hands-on-game-rust"
+name = "playerecs"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bracket-lib = "~0.8.1"
+legion = "=0.3.1"
