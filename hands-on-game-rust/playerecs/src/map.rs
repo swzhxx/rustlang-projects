@@ -60,7 +60,75 @@ impl Map {
             }
         }
     }
+
+    fn valid_exit(&self, loc: Point, delta: Point) -> Option<usize> {
+        let destination = loc + delta;
+        if self.in_bounds(destination) {
+            if self.can_enter_tile(destination) {
+                let idx = self.point2d_to_index(destination);
+                Some(idx)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 pub fn map_idx(x: i32, y: i32) -> usize {
     ((y * SCREEN_WIDTH) + x) as usize
+}
+
+impl Algorithm2D for Map {
+    fn dimensions(&self) -> Point {
+        Point::new(SCREEN_WIDTH, SCREEN_HEIGHT)
+    }
+    fn point2d_to_index(&self, pt: Point) -> usize {
+        let bounds = self.dimensions();
+        ((pt.y * bounds.x) + pt.x)
+            .try_into()
+            .expect("Not a valid usize. Did something go negative?")
+    }
+
+    fn index_to_point2d(&self, idx: usize) -> Point {
+        let bounds = self.dimensions();
+        let w: usize = bounds
+            .x
+            .try_into()
+            .expect("Not a valid usize. Did something go negative?");
+        Point::new(idx % w, idx / w)
+    }
+
+    fn in_bounds(&self, pos: Point) -> bool {
+        self.in_bounds(pos)
+    }
+}
+
+impl BaseMap for Map {
+    fn is_opaque(&self, idx: usize) -> bool {
+        self.tiles[idx as usize] != TileType::Floor
+    }
+
+    fn get_available_exits(&self, idx: usize) -> SmallVec<[(usize, f32); 10]> {
+        // SmallVec::new()
+        let mut exits = SmallVec::new();
+        let location = self.index_to_point2d(idx);
+        if let Some(idx) = self.valid_exit(location, Point::new(-1, 0)) {
+            exits.push((idx, 1.))
+        }
+        if let Some(idx) = self.valid_exit(location, Point::new(1, 0)) {
+            exits.push((idx, 1.))
+        }
+        if let Some(idx) = self.valid_exit(location, Point::new(0, -1)) {
+            exits.push((idx, 1.))
+        }
+        if let Some(idx) = self.valid_exit(location, Point::new(0, 1)) {
+            exits.push((idx, 1.))
+        }
+        exits
+    }
+
+    fn get_pathing_distance(&self, idx1: usize, idx2: usize) -> f32 {
+        DistanceAlg::Pythagoras.distance2d(self.index_to_point2d(idx1), self.index_to_point2d(idx2))
+    }
 }
