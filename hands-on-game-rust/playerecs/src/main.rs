@@ -49,6 +49,7 @@ impl State {
         resources.insert(map_builder.map);
         resources.insert(Camera::new(map_builder.player_start));
         resources.insert(TurnState::AwaitingInput);
+        resources.insert(map_builder.theme);
         Self {
             ecs,
             resources,
@@ -132,6 +133,7 @@ impl State {
         self.resources.insert(map_builder.map);
         self.resources.insert(Camera::new(map_builder.player_start));
         self.resources.insert(TurnState::AwaitingInput);
+        self.resources.insert(map_builder.theme);
     }
 }
 
