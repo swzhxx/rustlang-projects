@@ -1,19 +1,23 @@
-//![surface](https://doodlewind.github.io/learn-wgpu-cn/beginner/tutorial2-surface/#state-new)
-
+use std::iter;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
+
 fn main() {
+    pollster::block_on(run());
+}
+
+async fn run() {
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let mut state = pollster::block_on(State::new(&window));
+    let mut state = State::new(&window).await;
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
-            ref event,
             window_id,
+            ref event,
         } if window_id == window.id() => {
             if !state.input(event) {
                 match event {
@@ -27,7 +31,6 @@ fn main() {
                             },
                         ..
                     } => *control_flow = ControlFlow::Exit,
-
                     WindowEvent::Resized(physical_size) => {
                         state.resize(*physical_size);
                     }
@@ -55,33 +58,26 @@ fn main() {
             window.request_redraw();
         }
         _ => {}
-    });
+    })
 }
 
 struct State {
-    surface: wgpu::Surface,
+    size: winit::dpi::PhysicalSize<u32>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
-    clear_color: wgpu::Color,
+
     render_pipeline: wgpu::RenderPipeline,
+    challenge_render_pipeline: wgpu::RenderPipeline,
+    use_color: bool,
+    surface: wgpu::Surface,
 }
 
 impl State {
-    ///
-    /// adapter（适配器）是指向实际显卡的一个 handle。我们可以用它获取关于显卡的信息，例如显卡名称与其所适配到的后端等。稍后我们会用它来创建 Device 和 Queue。在此之前我们需要先讨论一下 RequestAdapterOptions 所涉及的字段。
-    /// power_preference 参数有两个可选项：LowPower 和 HighPerformance。选择 LowPower 时将对应一个有利于电池续航的适配器（如集成显卡）。相应地，HighPerformance 对应的适配器将指向独立显卡这样更耗电但性能更强的 GPU。如果不存在符合 HighPerformance 选项的适配器，wgpu 将选择 LowPower。
-    /// compatible_surface 字段要求 wgpu 所找到的适配器应当能与此处所传入的 surface 兼容。
-    /// force_fallback_adapter 强制 wgpu 选择一个能在所有硬件上工作的适配器。这通常表明渲染后端将使用一个「软渲染」系统，而非 GPU 这样的硬件。
-    ///   
     async fn new(window: &Window) -> Self {
         let size = window.inner_size();
-        // instance 变量是到 GPU 的 handle
-        // Backends::all 对应 Vulkan + Metal + DX12 + 浏览器的 WebGPU
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window) };
-
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -90,18 +86,22 @@ impl State {
             })
             .await
             .unwrap();
-
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
                     label: None,
+                    features: wgpu::Features::empty(),
+                    limits: if cfg!(target_arch = "wasm32") {
+                        wgpu::Limits::downlevel_webgl2_defaults()
+                    } else {
+                        wgpu::Limits::default()
+                    },
                 },
                 None,
             )
             .await
             .unwrap();
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface.get_supported_formats(&adapter)[0],
@@ -110,13 +110,12 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
         surface.configure(&device, &config);
-        let clear_color = wgpu::Color::BLACK;
-
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("challenge3_shader.wgsl").into()),
         });
-        let render_pipeline_layout =
+
+        let render_pipeline_layotut =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[],
@@ -125,18 +124,16 @@ impl State {
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
+            layout: Some(&render_pipeline_layotut),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main", // 1.
-                buffers: &[],           // 2.
+                entry_point: "vs_main",
+                buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
-                // 3.
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
-                    // 4.
                     format: config.format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
@@ -147,12 +144,8 @@ impl State {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
-                // or Features::POLYGON_MODE_POINT
                 polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
                 unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
                 conservative: false,
             },
             depth_stencil: None,
@@ -161,18 +154,77 @@ impl State {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            // If the pipeline will be used with a multiview render pass, this
-            // indicates how many array layers the attachments will have.
             multiview: None,
         });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Challenge Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("challeng3_shader2.wgsl").into()),
+        });
+
+        let challenge_render_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Render Pipeline"),
+                layout: Some(&render_pipeline_layotut),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: "vs_main",
+                    buffers: &[],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: config.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    ..Default::default()
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+            });
+
+        let use_color = true;
+        // Self { size }
         Self {
             surface,
             device,
             queue,
             config,
-            size,
-            clear_color,
             render_pipeline,
+            challenge_render_pipeline,
+            use_color,
+            size,
+        }
+    }
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state,
+                        virtual_keycode: Some(VirtualKeyCode::Space),
+                        ..
+                    },
+                ..
+            } => {
+                self.use_color = *state == ElementState::Released;
+                true
+            }
+            _ => false,
         }
     }
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -181,20 +233,6 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
-        }
-    }
-    fn input(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::CursorMoved { position, .. } => {
-                self.clear_color = wgpu::Color {
-                    r: position.x as f64 / self.size.width as f64,
-                    g: position.y as f64 / self.size.height as f64,
-                    b: 1.0,
-                    a: 1.0,
-                };
-                true
-            }
-            _ => false,
         }
     }
     fn update(&mut self) {}
@@ -215,16 +253,25 @@ impl State {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(self.clear_color),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
                         store: true,
                     },
                 })],
                 depth_stencil_attachment: None,
             });
-            render_pass.set_pipeline(&self.render_pipeline); // 2.
-            render_pass.draw(0..3, 0..1); // 3.
+            render_pass.set_pipeline(if self.use_color {
+                &self.render_pipeline
+            } else {
+                &self.challenge_render_pipeline
+            });
+            render_pass.draw(0..3, 0..1);
         }
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(iter::once(encoder.finish()));
         output.present();
         Ok(())
     }
