@@ -1,0 +1,12 @@
+[package]
+edition = "2021"
+name = "bevy_lesson"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = {version = "0.8"}
+bevy-inspector-egui = "0.12.1"
+
+rand = "0.8.5"
