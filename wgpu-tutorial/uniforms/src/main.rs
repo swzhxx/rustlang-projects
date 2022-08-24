@@ -1,7 +1,7 @@
 use std::iter;
 
 use bytemuck::bytes_of;
-use camera::{Camera, CameraUniform};
+use camera::{Camera, CameraController, CameraUniform};
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -131,6 +131,7 @@ struct State {
     camera: Camera,
     camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
+    camera_controller: CameraController,
     camera_bind_group: wgpu::BindGroup,
     render_pipeline: wgpu::RenderPipeline,
     // challenge_render_pipeline: wgpu::RenderPipeline,
@@ -285,6 +286,9 @@ impl State {
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
+
+        let camera_controller = CameraController::new(0.2);
+
         let render_pipeline_layotut =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -344,24 +348,26 @@ impl State {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            camera_controller,
         }
     }
     fn input(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state,
-                        virtual_keycode: Some(VirtualKeyCode::Space),
-                        ..
-                    },
-                ..
-            } => {
-                self.use_color = *state == ElementState::Released;
-                true
-            }
-            _ => false,
-        }
+        self.camera_controller.process_events(event)
+        // match event {
+        //     WindowEvent::KeyboardInput {
+        //         input:
+        //             KeyboardInput {
+        //                 state,
+        //                 virtual_keycode: Some(VirtualKeyCode::Space),
+        //                 ..
+        //             },
+        //         ..
+        //     } => {
+        //         self.use_color = *state == ElementState::Released;
+        //         true
+        //     }
+        //     _ => false,
+        // }
     }
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
@@ -371,7 +377,15 @@ impl State {
             self.surface.configure(&self.device, &self.config);
         }
     }
-    fn update(&mut self) {}
+    fn update(&mut self) {
+        self.camera_controller.update_camera(&mut self.camera);
+        self.camera_uniform.update_view_proj(&self.camera);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
+    }
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
