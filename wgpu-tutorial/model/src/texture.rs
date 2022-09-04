@@ -1,6 +1,6 @@
 use anyhow::*;
 use image::GenericImageView;
-
+use std::path::Path;
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -24,7 +24,7 @@ impl Texture {
         img: &image::DynamicImage,
         label: Option<&str>,
     ) -> Result<Self> {
-        let rgba = img.as_rgba8().unwrap();
+        let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
         let size = wgpu::Extent3d {
             width: dimensions.0,
@@ -49,7 +49,7 @@ impl Texture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            rgba,
+            &rgba,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
@@ -74,9 +74,18 @@ impl Texture {
             sampler,
         })
     }
+
+    pub fn load<P: AsRef<Path>>(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        path: P,
+    ) -> Result<Self> {
+        let path_copy = path.as_ref().to_path_buf();
+        let label = path_copy.to_str();
+        let img = image::open(path)?;
+        Self::from_image(device, queue, &img, label)
+    }
 }
-
-
 
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
