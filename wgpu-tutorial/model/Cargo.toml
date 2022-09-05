@@ -14,7 +14,7 @@ env_logger = "0.9"
 image = "0.23"
 log = "0.4"
 pollster = "0.2"
-tobj = "3.0"
+tobj = {version = "3.2", features = ["async"]}
 wgpu = "0.13"
 winit = "0.26"
 [build-dependencies]
