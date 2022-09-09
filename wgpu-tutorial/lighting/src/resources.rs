@@ -1,6 +1,10 @@
 use crate::{model, texture};
 use cfg_if::cfg_if;
-use std::{any, ops::Range, io::{Cursor, BufReader}};
+use std::{
+    any,
+    io::{BufReader, Cursor},
+    ops::Range,
+};
 use wgpu::util::DeviceExt;
 
 #[cfg(target_arch = "wasm32")]

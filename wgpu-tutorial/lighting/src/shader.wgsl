@@ -25,9 +25,9 @@ struct InstanceInput {
   @location(6) model_matrix_1: vec4<f32>,
   @location(7) model_matrix_2: vec4<f32>,
   @location(8) model_matrix_3: vec4<f32>,
-  @location(9) normal_matrix_0: vec4<f32>,
-  @location(10) normal_matrix_1: vec4<f32>,
-  @location(11) normal_matrix_2: vec4<f32>,
+  @location(9) normal_matrix_0: vec3<f32>,
+  @location(10) normal_matrix_1: vec3<f32>,
+  @location(11) normal_matrix_2: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -38,14 +38,18 @@ struct VertexOutput {
 }
 
 @vertex 
-fn vs_main(model: VertexInput, instance: InstanceInput) {
+fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     let model_matrix = mat4x4<f32>(
         instance.model_matrix_0,
         instance.model_matrix_1,
         instance.model_matrix_2,
         instance.model_matrix_3,
-    )
-    let normal_matrix = mat3x3<f32>(instance.normal_matrix_0, instance.normal_matrix_1, instance.normal_matrix_2);
+    );
+    let normal_matrix = mat3x3<f32>(
+        instance.normal_matrix_0,
+        instance.normal_matrix_1,
+        instance.normal_matrix_2,
+    );
     var out:VertexOutput;
     out.tex_coords = model.tex_coords;
     out.world_normal = normal_matrix * model.normal;
@@ -63,7 +67,7 @@ var s_diffuse:sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0)  vec4<f32> {
-    let object_color:vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords)
+    let object_color:vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
     let ambient_strength = 0.1;
     let ambient_color = light.color * ambient_strength;
 
