@@ -1,9 +1,6 @@
-[workspace]
-members = ["texture", "uniforms", "instancing", "model", "lighting", "normal", "camera"]
-
 [package]
 edition = "2021"
-name = "wgpu-tutorial"
+name = "camera"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,10 +8,17 @@ version = "0.1.0"
 [dependencies]
 anyhow = "1.0"
 bytemuck = {version = "1.4", features = ["derive"]}
+cfg-if = "1"
 cgmath = "0.18"
 env_logger = "0.9"
 image = "0.23"
+instant = "0.1"
 log = "0.4"
 pollster = "0.2"
+tobj = {version = "3.2", features = ["async"]}
 wgpu = "0.13"
 winit = "0.26"
+[build-dependencies]
+anyhow = "1.0"
+fs_extra = "1.2"
+glob = "0.3"
