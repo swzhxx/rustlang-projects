@@ -4,9 +4,10 @@ name = "bevy_lesson"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-bevy = {version = "0.8"}
+bevy = {version = "0.8.0"}
 bevy-inspector-egui = "0.12.1"
-
+bevy_editor_pls = {git = "https://gitee.com/swzhxx/bevy_editor_pls.git"}
 rand = "0.8.5"
+[profile.dev.package."*"]
+opt-level = 3
