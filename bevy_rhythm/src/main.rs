@@ -1,6 +1,6 @@
-// mod arrows;
+mod arrows;
 mod consts;
-// mod types;
+mod types;
 use bevy::{input::system::exit_on_esc_system, prelude::*};
 use consts::*;
 fn main() {
