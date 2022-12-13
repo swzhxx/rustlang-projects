@@ -8,6 +8,7 @@ version = "0.1.0"
 [dependencies]
 bevy = {version = "0.8"}
 bevy-inspector-egui = "0.12.1"
+bevy_mod_picking = "0.9"
 
 [profile.dev]
 opt-level = 1
