@@ -6,7 +6,7 @@ pub use bullet::*;
 pub use target::*;
 pub use tower::*;
 
-use bevy::prelude::*;
+use bevy::{pbr::NotShadowCaster, prelude::*};
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_picking::*;
 
@@ -38,39 +38,49 @@ fn spawn_basic_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     game_assets: ResMut<GameAssets>,
 ) {
-    commands.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(-2., 2.5, 5.).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+    commands
+        .spawn_bundle(Camera3dBundle {
+            transform: Transform::from_xyz(-2., 2.5, 5.).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        })
+        .insert_bundle(PickingCameraBundle::default());
+
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..default()
     });
 
-    // commands
-    //     .spawn_bundle(PbrBundle {
-    //         mesh: meshes.add(Mesh::from(shape::Cube { size: 1. })),
-    //         material: materials.add(Color::rgb(0.67, 0.84, 0.92).into()),
-    //         transform: Transform::from_xyz(0.0, 0.5, 0.0),
-    //         ..default()
-    //     })
-    //     .insert(Tower {
-    //         shooting_timer: Timer::from_seconds(1., true),
-    //         bullet_offset: Vec3::new(0., 0.7, 0.6),
-    //     })
-    //     .insert(Name::new("Tower"));
+    let default_collider_color = materials.add(Color::rgba(0.3, 0.5, 0.3, 0.3).into());
+    let selected_collider_color = materials.add(Color::rgba(0.3, 0.9, 0.3, 0.9).into());
 
     commands
-        .spawn_bundle(SceneBundle {
-            scene: game_assets.tower_base_scene.clone(),
-            ..default()
+        .spawn_bundle(SpatialBundle::from_transform(Transform::from_xyz(
+            0., 0.8, 0.,
+        )))
+        .insert(Name::new("Tower_base"))
+        .insert(meshes.add(shape::Capsule::default().into()))
+        .insert(NotShadowCaster)
+        .insert(Highlighting {
+            initial: default_collider_color.clone(),
+            hovered: Some(selected_collider_color.clone()),
+            pressed: Some(selected_collider_color.clone()),
+            selected: Some(selected_collider_color),
         })
-        .insert(Tower {
-            shooting_timer: Timer::from_seconds(1., true),
-            bullet_offset: Vec3::new(0., 0.7, 0.6),
-        })
-        .insert(Name::new("Tower"));
+        .insert(default_collider_color)
+        .insert_bundle(PickableBundle::default())
+        .with_children(|commands| {
+            commands.spawn_bundle(SceneBundle {
+                scene: game_assets.tower_base_scene.clone(),
+                transform: Transform::from_xyz(0., -0.8, 0.),
+                ..default()
+            });
+            // .insert(Tower {
+            //     shooting_timer: Timer::from_seconds(1., true),
+            //     bullet_offset: Vec3::new(0., 0.7, 0.6),
+            // })
+            // .insert(Name::new("Tower"));
+        });
 
     commands
         .spawn_bundle(PointLightBundle {
