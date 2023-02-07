@@ -1,3 +1,4 @@
+mod arc;
 mod arc_channel;
 mod channel;
 mod spin_lock;
