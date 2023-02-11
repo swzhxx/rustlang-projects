@@ -111,6 +111,30 @@ impl State for Screen {
                     self.gates_along_offset -= max_gates_along_offset;
                     self.disappeared_gates += 1;
                 }
+                // If the ski tip is over a gate, and before it wasn't,
+                // check whether it is within the gate.
+                let ski_tip_along = SCREEN_HEIGHT * 15. / 16. - SKI_LENGTH / 2. - SKI_TIP_LEN;
+
+                let ski_tip_across = SCREEN_WIDTH / 2. + self.ski_across_offset;
+
+                let n_next_gate = self.disappeared_gates;
+                let next_gate = &self.gates[n_next_gate];
+                let left_pole_offset = SCREEN_WIDTH / 2. + next_gate.0 + GATE_POLE_RADIUS;
+                let right_pole_offset = SCREEN_WIDTH / 2. + next_gate.1 - GATE_POLE_RADIUS;
+                let next_gate_along = self.gates_along_offset + SCREEN_HEIGHT
+                    - SCREEN_HEIGHT / N_GATES_IN_SCREEN as f32;
+                if ski_tip_along <= next_gate_along {
+                    if !self.entered_gate {
+                        if ski_tip_across < left_pole_offset || ski_tip_across > right_pole_offset {
+                            self.mode = Mode::Failed;
+                        } else if self.disappeared_gates == TOTAL_N_GATES - 1 {
+                            self.mode = Mode::Finished;
+                        }
+                        self.entered_gate = true;
+                    }
+                } else {
+                    self.entered_gate = false;
+                }
             }
             Mode::Finished | Mode::Failed => {
                 if window.keyboard()[Key::R].is_down() {
