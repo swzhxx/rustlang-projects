@@ -1,5 +1,6 @@
 [workspace]
-members = ["ski", "silent_slalom", "gg_assets_slalom"]
+members = ["ski", "silent_slalom", "gg_assets_slalom","assets_slalom"]
+
 
 [package]
 edition = "2021"
