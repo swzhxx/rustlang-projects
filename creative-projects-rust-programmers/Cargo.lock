@@ -1020,6 +1020,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gg_ski"
+version = "0.1.0"
+dependencies = [
+ "ggez",
+ "nalgebra",
+]
+
+[[package]]
 name = "ggez"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
