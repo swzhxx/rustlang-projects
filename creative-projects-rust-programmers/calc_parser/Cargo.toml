@@ -1,11 +1,9 @@
-[workspace]
-members = ["ski", "silent_slalom", "gg_assets_slalom", "assets_slalom", "calc_parser"]
-
 [package]
 edition = "2021"
-name = "creative-projects-rust-programmers"
+name = "calc_parser"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+nom = "5"
