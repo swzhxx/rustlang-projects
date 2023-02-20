@@ -1,5 +1,5 @@
 [workspace]
-members = ["ski", "silent_slalom", "gg_assets_slalom", "assets_slalom", "gg_ski", "calc_parser", "calc_analyzer"]
+members = ["ski", "silent_slalom", "gg_assets_slalom", "assets_slalom", "gg_ski", "calc_parser", "calc_analyzer", "calc_interpreter"]
 
 [package]
 edition = "2021"
