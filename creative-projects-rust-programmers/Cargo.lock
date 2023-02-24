@@ -306,6 +306,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "calc_compiler"
+version = "0.1.0"
+dependencies = [
+ "nom 5.1.2",
+]
+
+[[package]]
 name = "calc_interpreter"
 version = "0.1.0"
 dependencies = [
