@@ -1,4 +1,7 @@
-use std::{f32::consts::FRAC_PI_2, ops::Mul};
+use std::{
+    f32::consts::FRAC_PI_2,
+    ops::{Div, Mul},
+};
 
 use bevy::{math::f32::Mat4, prelude::*};
 use bevy_inspector_egui::WorldInspectorPlugin;
@@ -72,10 +75,24 @@ impl Default for Rigidbody {
     }
 }
 
+impl Rigidbody {
+    fn collide_with_plane(&self, P: &Vec3, N: &Vec3, x: &Vec3) -> bool {
+        return (x.clone() - P.clone()).dot(N.clone()) < 0.;
+    }
+}
+
 #[derive(Component, Default, Reflect)]
 #[reflect(Component)]
 struct Collision {
     normal: Vec3,
+}
+
+#[derive(Component)]
+struct CollisionEffectPack {
+    entity: Entity,
+    velocity: Vec3,
+    normal: Vec3,
+    Rr: Vec3,
 }
 
 struct GameAssets {
@@ -232,11 +249,20 @@ fn keyboard_input(mut commands: Commands, keyboard: Res<Input<KeyCode>>) {}
 
 fn collision_dectection(
     mut commands: Commands,
-    rigid_query: Query<(Entity, &Rigidbody, &Transform, &Handle<Mesh>)>,
+    rigid_query: Query<(
+        Entity,
+        &Rigidbody,
+        &Transform,
+        &Handle<Mesh>,
+        &Velocity,
+        &AnguleVelocity,
+    )>,
     collsion_query: Query<(Entity, &Collision, &Transform)>,
     meshes: Res<Assets<Mesh>>,
 ) {
-    for (rigid_entity, rigid_body, transform, handle_mesh) in rigid_query.iter() {
+    for (rigid_entity, rigid_body, transform, handle_mesh, velocity, angular_velocity) in
+        rigid_query.iter()
+    {
         let T = transform.translation;
         let R = Mat4::from_quat(transform.rotation);
         let S = transform.scale;
@@ -247,6 +273,36 @@ fn collision_dectection(
             for i in vertices.iter() {
                 // may be w is not 1. trigger bug
                 let xi = T + (R.mul_vec4(i.extend(1.))).truncate();
+                let vi = velocity.0
+                    + angular_velocity
+                        .0
+                        .cross((R.mul_vec4(i.extend(1.))).truncate());
+
+                for (_, collsion, c_transform) in collsion_query.iter() {
+                    let collsion_R = Mat4::from_quat(c_transform.rotation);
+                    let collsion_position = c_transform.translation;
+                    let c_normal = (collsion_R * collsion.normal.extend(1.))
+                        .truncate()
+                        .normalize();
+
+                    let mut num = 0;
+                    let mut total_x = Vec3::ZERO.clone();
+                    if rigid_body.collide_with_plane(&collsion_position, &c_normal, &i)
+                        && vi.dot(c_normal.clone()) < 0.
+                    {
+                        num += 1;
+                        total_x += xi;
+                    };
+
+                    if num == 0 {
+                        continue;
+                    }
+
+                    let x_mean = total_x.div(num as f32);
+                    let Rr = x_mean - T;
+                    let V = vi + angular_velocity.0.cross(Rr);
+                }
+                // if rigid_body.collide_with_plane(, N, x)
             }
         }
     }
