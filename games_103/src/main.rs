@@ -15,6 +15,8 @@ enum AppState {
 
 const VELOCITY_DECAY: f32 = 0.999;
 const ANGULE_DECAY: f32 = 0.98;
+const MU: f32 = 0.5;
+const restitution: f32 = 0.5;
 
 fn main() {
     App::new()
@@ -88,11 +90,12 @@ struct Collision {
 }
 
 #[derive(Component)]
-struct CollisionEffectPack {
+struct CollisionEffectMessage {
     entity: Entity,
     velocity: Vec3,
     normal: Vec3,
     Rr: Vec3,
+    interial: Mat4,
 }
 
 struct GameAssets {
@@ -266,7 +269,7 @@ fn collision_dectection(
         let T = transform.translation;
         let R = Mat4::from_quat(transform.rotation);
         let S = transform.scale;
-        let i = R * rigid_body.inertial_ref * R.transpose();
+        let interial = R * rigid_body.inertial_ref * R.transpose();
 
         if let Some(mesh) = meshes.get(handle_mesh) {
             let vertices = get_scaled_vertices(mesh, &S);
@@ -301,10 +304,72 @@ fn collision_dectection(
                     let x_mean = total_x.div(num as f32);
                     let Rr = x_mean - T;
                     let V = vi + angular_velocity.0.cross(Rr);
+                    commands.spawn().insert(CollisionEffectMessage {
+                        entity: rigid_entity,
+                        velocity: V,
+                        normal: c_normal,
+                        Rr,
+                        interial: interial,
+                    });
                 }
                 // if rigid_body.collide_with_plane(, N, x)
             }
         }
+    }
+}
+
+fn collision_effect(
+    mut commands: Commands,
+    mut query: Query<(&CollisionEffectMessage, &mut Rigidbody)>,
+    mut rigidy_query: Query<(&Mass, &mut Velocity, &mut AnguleVelocity)>,
+) {
+    for (message, mut rigid_body) in query.iter_mut() {
+        let mut vn = message.velocity.dot(message.normal) * message.normal;
+        let mut vt = message.velocity - vn;
+        let Rr = message.Rr;
+        let a = (0 as f32).max(1. - MU * (1. + restitution) * vn.length() / vt.length());
+        vn = -1. * restitution * vn;
+        vt = a * vt;
+        let mut vnew = vn + vt;
+
+        let mut K = Mat4::IDENTITY.clone();
+        let (mut mass, mut velocity, mut angular_velocity) =
+            rigidy_query.get_mut(message.entity).unwrap();
+        K.row(0)[0] = 1. / mass.0;
+        K.row(1)[1] = 1. / mass.0;
+        K.row(0)[0] = 1. / mass.0;
+
+        let temp = vec3_to_antisymmetric_matrix4(Rr.clone())
+            * rigid_body.inertial_ref.inverse()
+            * vec3_to_antisymmetric_matrix4(Rr.clone());
+
+        K.row(0)[0] -= temp.row(0)[0];
+        K.row(0)[1] -= temp.row(0)[1];
+        K.row(0)[2] -= temp.row(0)[2];
+        K.row(0)[3] -= temp.row(0)[3];
+        K.row(1)[0] -= temp.row(1)[0];
+        K.row(1)[1] -= temp.row(1)[1];
+        K.row(1)[2] -= temp.row(1)[2];
+        K.row(1)[3] -= temp.row(1)[3];
+        K.row(2)[0] -= temp.row(2)[0];
+        K.row(2)[1] -= temp.row(2)[1];
+        K.row(2)[2] -= temp.row(2)[2];
+        K.row(2)[3] -= temp.row(2)[3];
+        K.row(3)[0] -= temp.row(3)[0];
+        K.row(3)[1] -= temp.row(3)[1];
+        K.row(3)[2] -= temp.row(3)[2];
+        K.row(3)[3] -= temp.row(3)[3];
+
+        let j: Vec4 = K
+            .inverse()
+            .mul_vec4(vnew.extend(1.) - message.velocity.clone().extend(1.));
+        let j = (j / j.w).truncate();
+
+        velocity.0 = message.velocity + j / mass.0;
+        let _delta_angular_veclocity = message.interial.inverse().mul_vec4(Rr.cross(j).extend(1.));
+        let delta_angular_veclocity =
+            (_delta_angular_veclocity / _delta_angular_veclocity.w).truncate();
+        angular_velocity.0 = angular_velocity.0 + delta_angular_veclocity;
     }
 }
 
@@ -319,7 +384,7 @@ fn update_velocity(mut velocities: Query<(&mut Velocity, &Rigidbody)>, timer: Re
 fn update_angular(mut angulars: Query<(&mut AnguleVelocity)>, timer: Res<Time>) {
     let delta = timer.delta_seconds();
     for (mut angular) in angulars.iter_mut() {
-        angular.0 *= ANGULE_DECAY
+        angular.0 *= ANGULE_DECAY * delta
     }
 }
 
@@ -337,4 +402,44 @@ fn get_scaled_vertices(mesh: &Mesh, scale: &Vec3) -> Vec<Vec3> {
             _v
         })
         .collect()
+}
+
+fn vec3_to_antisymmetric_matrix4(vec: Vec3) -> Mat4 {
+    let temp = Mat4::ZERO.clone();
+    temp.row(0)[0] = 0.;
+    temp.row(0)[1] = -vec.z;
+    temp.row(0)[2] = vec.y;
+
+    temp.row(1)[0] = vec.z;
+    temp.row(1)[1] = 0.;
+    temp.row(1)[2] = -vec.x;
+
+    temp.row(2)[0] = -vec.x;
+    temp.row(2)[1] = vec.y;
+    temp.row(2)[2] = 0.;
+
+    temp.row(3)[3] = 1.;
+
+    temp
+}
+
+fn update_transform(
+    mut query: Query<(&mut Transform, &Velocity, &AnguleVelocity)>,
+    timer: Res<Time>,
+) {
+    let delta = timer.delta_seconds();
+    for (mut transform, v, w) in query.iter_mut() {
+        transform.translation = transform.translation + transform.translation * delta;
+        let delta_q = w.0 * delta / 2.;
+        let q0 = transform.rotation;
+        let temp = Quat::from_array([delta_q.x, delta_q.y, delta_q.z, 0.]) * q0;
+
+        transform.rotation = Quat::from_array([
+            q0.x + temp.x,
+            q0.y + temp.y,
+            delta_q.z + q0.z,
+            temp.w + q0.w,
+        ])
+        .normalize();
+    }
 }
