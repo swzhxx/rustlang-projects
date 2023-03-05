@@ -16,7 +16,6 @@ enum AppState {
 const VELOCITY_DECAY: f32 = 0.999;
 const ANGULE_DECAY: f32 = 0.98;
 const MU: f32 = 0.5;
-const restitution: f32 = 0.5;
 
 fn main() {
     App::new()
@@ -29,6 +28,7 @@ fn main() {
             resizable: false,
             ..default()
         })
+        .insert_resource(Restitution(0.5))
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(ObjPlugin)
@@ -38,10 +38,11 @@ fn main() {
         .add_system_set(
             SystemSet::on_update(AppState::Running)
                 .with_system(keyboard_input)
-                // .with_system(update_velocity)
-                // .with_system(update_angular)
-                // .with_system(collision_dectection)
-                .with_system(collision_dectection),
+                .with_system(update_velocity)
+                .with_system(update_angular.after(update_velocity))
+                .with_system(collision_dectection.after(update_angular))
+                .with_system(collision_effect.after(collision_dectection))
+                .with_system(update_transform),
         )
         .run();
 }
@@ -66,13 +67,16 @@ struct Rigidbody {
     gravity: Vec3,
 }
 
+#[derive(Default, PartialEq, Debug)]
+struct Restitution(f32);
+
 impl Default for Rigidbody {
     fn default() -> Self {
         let mut i = Mat4::ZERO.clone();
         i.row(3)[3] = 1.;
         Self {
             inertial_ref: i,
-            gravity: Vec3::new(0., -9.8, 0.),
+            gravity: Vec3::new(0., 0., 0.),
         }
     }
 }
@@ -90,6 +94,7 @@ struct Collision {
 }
 
 #[derive(Component)]
+
 struct CollisionEffectMessage {
     entity: Entity,
     velocity: Vec3,
@@ -113,7 +118,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let mesh = meshes.add(Mesh::from(shape::Plane { size: 50. }));
+    let mesh = meshes.add(Mesh::from(shape::Plane { size: 1. }));
     // ground
     commands
         .spawn_bundle(PbrBundle {
@@ -124,6 +129,10 @@ fn setup(
                 perceptual_roughness: 0.5,
                 ..default()
             }),
+            transform: Transform {
+                scale: Vec3::new(2., 2., 2.),
+                ..default()
+            },
             ..default()
         })
         .insert(Collision {
@@ -135,14 +144,15 @@ fn setup(
         .spawn_bundle(PbrBundle {
             mesh: mesh,
             material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.5, 0.5, 0.5),
+                base_color: Color::rgb(0.1, 0.1, 0.8),
                 metallic: 0.2,
                 perceptual_roughness: 0.5,
                 ..default()
             }),
             transform: Transform {
-                translation: Vec3::new(0., 0., -2.),
-                rotation: Quat::from_euler(EulerRot::XYZ, FRAC_PI_2, 0., 0.),
+                translation: Vec3::new(2., 0., 0.),
+                rotation: Quat::from_euler(EulerRot::XYZ, 0., 0., FRAC_PI_2),
+                scale: Vec3::new(2., 2., 2.),
                 ..default()
             },
             ..default()
@@ -153,7 +163,8 @@ fn setup(
 
     // camera
     commands.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(10.0, 10.0, 15.0)
+        transform: Transform::from_xyz(-1.730627, 2.0196069, -1.5942)
+            .with_rotation(Quat::from_euler(EulerRot::XYZ, 0.4172, 1.046666, 0.))
             .looking_at(Vec3::new(0.0, 0.0, -1.0), Vec3::Y),
         ..default()
     });
@@ -198,12 +209,12 @@ fn init_rigid_bunny(
     mut materials: ResMut<Assets<StandardMaterial>>,
     meshes: Res<Assets<Mesh>>,
 ) {
-    let transform =
-        Transform::from_translation(Vec3::new(2., 2., 2.)).with_scale(Vec3::new(20., 20., 20.));
+    let transform = Transform::from_translation(Vec3::new(0., 0.6, 0.))
+        .with_rotation(Quat::from_euler(EulerRot::XYZ, 1.39555, 0., 0.));
     let scale = transform.scale;
 
-    let mut interial_ref: Mat4 = Mat4::ZERO.clone();
-    interial_ref.row(3)[3] = 1.;
+    let interial_ref: Mat4 = Mat4::from(Mat4::ZERO);
+
     if let Some(mesh) = meshes.get(&game_assets.bunny) {
         // 计算质量
         let mass = Mass(mesh.count_vertices() as f32);
@@ -214,22 +225,25 @@ fn init_rigid_bunny(
         for i in 0..vertices.len() {
             let _v = vertices[i];
             let diag = _v.length_squared();
+          
             interial_ref.row(0)[0] += diag;
             interial_ref.row(1)[1] += diag;
             interial_ref.row(2)[2] += diag;
-            interial_ref.row(0)[1] -= _v.x * _v.x;
-            interial_ref.row(0)[2] -= _v.x * _v.y;
-            interial_ref.row(0)[3] -= _v.x * _v.z;
 
-            interial_ref.row(1)[1] -= _v.y * _v.x;
-            interial_ref.row(1)[2] -= _v.y * _v.y;
-            interial_ref.row(1)[3] -= _v.y * _v.z;
+            interial_ref.row(0)[0] -= _v.x * _v.x;
+            interial_ref.row(0)[1] -= _v.x * _v.y;
+            interial_ref.row(0)[2] -= _v.x * _v.z;
 
-            interial_ref.row(2)[1] -= _v.z * _v.x;
-            interial_ref.row(2)[2] -= _v.z * _v.y;
-            interial_ref.row(2)[3] -= _v.z * _v.z;
+            interial_ref.row(1)[0] -= _v.y * _v.x;
+            interial_ref.row(1)[1] -= _v.y * _v.y;
+            interial_ref.row(1)[2] -= _v.y * _v.z;
+
+            interial_ref.row(2)[0] -= _v.z * _v.x;
+            interial_ref.row(2)[1] -= _v.z * _v.y;
+            interial_ref.row(2)[2] -= _v.z * _v.z;
         }
-
+        interial_ref.row(3)[3] = 1.;
+        println!("interial_ref {:?}", interial_ref);
         commands
             .spawn_bundle(PbrBundle {
                 mesh: game_assets.bunny.clone(),
@@ -244,11 +258,33 @@ fn init_rigid_bunny(
                 inertial_ref: interial_ref,
                 ..default()
             })
+            .insert(Velocity::default())
+            .insert(AnguleVelocity::default())
             .insert(mass);
     }
 }
 
-fn keyboard_input(mut commands: Commands, keyboard: Res<Input<KeyCode>>) {}
+fn keyboard_input(
+    mut commands: Commands,
+    keys: Res<Input<KeyCode>>,
+    mut r_query: Query<(Entity, &mut Rigidbody, &mut Transform, &mut Velocity)>,
+    mut restitution: ResMut<Restitution>,
+) {
+    match r_query.get_single_mut() {
+        Ok((_entity, mut rb, mut transform, mut v)) => {
+            if keys.pressed(KeyCode::L) {
+                v.0 = Vec3::new(5., 2., 0.);
+                rb.gravity = Vec3::new(0., -9.8, 0.);
+            }
+            if keys.pressed(KeyCode::R) {
+                restitution.0 = 0.5;
+                transform.translation = Vec3::new(0., 0.6, 0.);
+                rb.gravity = Vec3::new(0., 0., 0.)
+            }
+        }
+        _ => {}
+    }
+}
 
 fn collision_dectection(
     mut commands: Commands,
@@ -283,6 +319,7 @@ fn collision_dectection(
 
                 for (_, collsion, c_transform) in collsion_query.iter() {
                     let collsion_R = Mat4::from_quat(c_transform.rotation);
+
                     let collsion_position = c_transform.translation;
                     let c_normal = (collsion_R * collsion.normal.extend(1.))
                         .truncate()
@@ -290,7 +327,7 @@ fn collision_dectection(
 
                     let mut num = 0;
                     let mut total_x = Vec3::ZERO.clone();
-                    if rigid_body.collide_with_plane(&collsion_position, &c_normal, &i)
+                    if rigid_body.collide_with_plane(&collsion_position, &c_normal, &xi)
                         && vi.dot(c_normal.clone()) < 0.
                     {
                         num += 1;
@@ -304,6 +341,7 @@ fn collision_dectection(
                     let x_mean = total_x.div(num as f32);
                     let Rr = x_mean - T;
                     let V = vi + angular_velocity.0.cross(Rr);
+
                     commands.spawn().insert(CollisionEffectMessage {
                         entity: rigid_entity,
                         velocity: V,
@@ -320,56 +358,83 @@ fn collision_dectection(
 
 fn collision_effect(
     mut commands: Commands,
-    mut query: Query<(&CollisionEffectMessage, &mut Rigidbody)>,
-    mut rigidy_query: Query<(&Mass, &mut Velocity, &mut AnguleVelocity)>,
+    mut query: Query<(Entity, &CollisionEffectMessage)>,
+    mut rigidy_query: Query<(
+        Entity,
+        &Mass,
+        &mut Velocity,
+        &mut AnguleVelocity,
+        &Rigidbody,
+    )>,
+    mut restitution: ResMut<Restitution>,
 ) {
-    for (message, mut rigid_body) in query.iter_mut() {
+    for (message_entity, message) in query.iter_mut() {
         let mut vn = message.velocity.dot(message.normal) * message.normal;
         let mut vt = message.velocity - vn;
+        // println!("1  vn {} , vt {}", vn, vt);
         let Rr = message.Rr;
-        let a = (0 as f32).max(1. - MU * (1. + restitution) * vn.length() / vt.length());
-        vn = -1. * restitution * vn;
+        let a = (0 as f32).max(1. - MU * (1. + restitution.0) * vn.length() / vt.length());
+        vn = -1. * restitution.0 * vn;
         vt = a * vt;
+        // println!("2  vn {} , vt {}", vn, vt);
+
         let mut vnew = vn + vt;
 
         let mut K = Mat4::IDENTITY.clone();
-        let (mut mass, mut velocity, mut angular_velocity) =
+        let (_entity, mut mass, mut velocity, mut angular_velocity, rigid_body) =
             rigidy_query.get_mut(message.entity).unwrap();
-        K.row(0)[0] = 1. / mass.0;
-        K.row(1)[1] = 1. / mass.0;
-        K.row(0)[0] = 1. / mass.0;
+
+        K.row(0)[0] /= mass.0;
+        K.row(1)[1] /= mass.0;
+        K.row(2)[2] /= mass.0;
+        K.row(3)[3] /= mass.0;
 
         let temp = vec3_to_antisymmetric_matrix4(Rr.clone())
-            * rigid_body.inertial_ref.inverse()
+            * message.interial.inverse()
             * vec3_to_antisymmetric_matrix4(Rr.clone());
 
         K.row(0)[0] -= temp.row(0)[0];
         K.row(0)[1] -= temp.row(0)[1];
         K.row(0)[2] -= temp.row(0)[2];
         K.row(0)[3] -= temp.row(0)[3];
+
         K.row(1)[0] -= temp.row(1)[0];
         K.row(1)[1] -= temp.row(1)[1];
         K.row(1)[2] -= temp.row(1)[2];
         K.row(1)[3] -= temp.row(1)[3];
+
         K.row(2)[0] -= temp.row(2)[0];
         K.row(2)[1] -= temp.row(2)[1];
         K.row(2)[2] -= temp.row(2)[2];
-        K.row(2)[3] -= temp.row(2)[3];
-        K.row(3)[0] -= temp.row(3)[0];
-        K.row(3)[1] -= temp.row(3)[1];
-        K.row(3)[2] -= temp.row(3)[2];
+
         K.row(3)[3] -= temp.row(3)[3];
 
         let j: Vec4 = K
             .inverse()
             .mul_vec4(vnew.extend(1.) - message.velocity.clone().extend(1.));
-        let j = (j / j.w).truncate();
+        println!(
+            "K inverse {} vnew {} , vold {}, j {} , mass {}",
+            K.inverse(),
+            vnew,
+            message.velocity,
+            j,
+            mass.0
+        );
+        let j = j.truncate();
 
         velocity.0 = message.velocity + j / mass.0;
         let _delta_angular_veclocity = message.interial.inverse().mul_vec4(Rr.cross(j).extend(1.));
         let delta_angular_veclocity =
             (_delta_angular_veclocity / _delta_angular_veclocity.w).truncate();
         angular_velocity.0 = angular_velocity.0 + delta_angular_veclocity;
+
+        restitution.0 = restitution.0 * 0.9;
+        if restitution.0 < 0.01 || angular_velocity.0.length() < 0.01 {
+            restitution.0 = 0.;
+        }
+        panic!();
+
+        commands.entity(message_entity).despawn_recursive();
     }
 }
 
@@ -395,13 +460,15 @@ fn get_scaled_vertices(mesh: &Mesh, scale: &Vec3) -> Vec<Vec3> {
         .as_float3()
         .unwrap();
 
-    vertices
+    let res = vertices
         .iter()
         .map(move |v| {
-            let _v = Vec3::new(v[0], v[1], v[2]).mul(scale.clone());
+            let _v = Vec3::new(v[0], v[1], v[2]);
             _v
         })
-        .collect()
+        .collect();
+    // println!("vertices {:?}", res);
+    return res;
 }
 
 fn vec3_to_antisymmetric_matrix4(vec: Vec3) -> Mat4 {
@@ -414,8 +481,8 @@ fn vec3_to_antisymmetric_matrix4(vec: Vec3) -> Mat4 {
     temp.row(1)[1] = 0.;
     temp.row(1)[2] = -vec.x;
 
-    temp.row(2)[0] = -vec.x;
-    temp.row(2)[1] = vec.y;
+    temp.row(2)[0] = -vec.y;
+    temp.row(2)[1] = vec.x;
     temp.row(2)[2] = 0.;
 
     temp.row(3)[3] = 1.;
@@ -429,7 +496,8 @@ fn update_transform(
 ) {
     let delta = timer.delta_seconds();
     for (mut transform, v, w) in query.iter_mut() {
-        transform.translation = transform.translation + transform.translation * delta;
+        transform.translation = transform.translation + v.0 * delta;
+        // println!("update transform {:?}", transform.translation);
         let delta_q = w.0 * delta / 2.;
         let q0 = transform.rotation;
         let temp = Quat::from_array([delta_q.x, delta_q.y, delta_q.z, 0.]) * q0;
