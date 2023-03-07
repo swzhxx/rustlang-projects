@@ -42,7 +42,7 @@ fn main() {
                 .with_system(update_angular.after(update_velocity))
                 .with_system(collision_dectection.after(update_angular))
                 .with_system(collision_effect.after(collision_dectection))
-                .with_system(update_transform),
+                .with_system(update_transform.after(collision_effect)),
         )
         .run();
 }
@@ -72,7 +72,7 @@ struct Restitution(f32);
 
 impl Default for Rigidbody {
     fn default() -> Self {
-        let mut i = Mat4::ZERO.clone();
+        let mut i = Mat4::ZERO;
         i.row(3)[3] = 1.;
         Self {
             inertial_ref: i,
@@ -213,8 +213,8 @@ fn init_rigid_bunny(
         .with_rotation(Quat::from_euler(EulerRot::XYZ, 1.39555, 0., 0.));
     let scale = transform.scale;
 
-    let interial_ref: Mat4 = Mat4::from(Mat4::ZERO);
-
+    let mut interial_ref: Mat4 = Mat4::ZERO;
+    interial_ref.col_mut(3)[3] = 1.;
     if let Some(mesh) = meshes.get(&game_assets.bunny) {
         // 计算质量
         let mass = Mass(mesh.count_vertices() as f32);
@@ -225,22 +225,38 @@ fn init_rigid_bunny(
         for i in 0..vertices.len() {
             let _v = vertices[i];
             let diag = _v.length_squared();
-          
-            interial_ref.row(0)[0] += diag;
-            interial_ref.row(1)[1] += diag;
-            interial_ref.row(2)[2] += diag;
 
-            interial_ref.row(0)[0] -= _v.x * _v.x;
-            interial_ref.row(0)[1] -= _v.x * _v.y;
-            interial_ref.row(0)[2] -= _v.x * _v.z;
+            // interial_ref.row(0)[0] += diag;
+            // interial_ref.row(1)[1] += diag;
+            // interial_ref.row(2)[2] += diag;
 
-            interial_ref.row(1)[0] -= _v.y * _v.x;
-            interial_ref.row(1)[1] -= _v.y * _v.y;
-            interial_ref.row(1)[2] -= _v.y * _v.z;
+            // interial_ref.row(0)[0] -= _v.x * _v.x;
+            // interial_ref.row(0)[1] -= _v.x * _v.y;
+            // interial_ref.row(0)[2] -= _v.x * _v.z;
 
-            interial_ref.row(2)[0] -= _v.z * _v.x;
-            interial_ref.row(2)[1] -= _v.z * _v.y;
-            interial_ref.row(2)[2] -= _v.z * _v.z;
+            // interial_ref.row(1)[0] -= _v.y * _v.x;
+            // interial_ref.row(1)[1] -= _v.y * _v.y;
+            // interial_ref.row(1)[2] -= _v.y * _v.z;
+
+            // interial_ref.row(2)[0] -= _v.z * _v.x;
+            // interial_ref.row(2)[1] -= _v.z * _v.y;
+            // interial_ref.row(2)[2] -= _v.z * _v.z;
+
+            interial_ref.col_mut(0)[0] += diag;
+            interial_ref.col_mut(1)[1] += diag;
+            interial_ref.col_mut(2)[2] += diag;
+
+            interial_ref.col_mut(0)[0] -= _v.x * _v.x;
+            interial_ref.col_mut(0)[1] -= _v.y * _v.x;
+            interial_ref.col_mut(0)[2] -= _v.z * _v.x;
+
+            interial_ref.col_mut(1)[0] -= _v.x * _v.y;
+            interial_ref.col_mut(1)[1] -= _v.y * _v.y;
+            interial_ref.col_mut(1)[2] -= _v.z * _v.y;
+
+            interial_ref.col_mut(2)[0] -= _v.x * _v.z;
+            interial_ref.col_mut(2)[1] -= _v.y * _v.z;
+            interial_ref.col_mut(2)[2] -= _v.z * _v.z;
         }
         interial_ref.row(3)[3] = 1.;
         println!("interial_ref {:?}", interial_ref);
@@ -309,48 +325,50 @@ fn collision_dectection(
 
         if let Some(mesh) = meshes.get(handle_mesh) {
             let vertices = get_scaled_vertices(mesh, &S);
-            for i in vertices.iter() {
-                // may be w is not 1. trigger bug
-                let xi = T + (R.mul_vec4(i.extend(1.))).truncate();
-                let vi = velocity.0
-                    + angular_velocity
-                        .0
-                        .cross((R.mul_vec4(i.extend(1.))).truncate());
+            for (_, collsion, c_transform) in collsion_query.iter() {
+                let mut effect_message: Option<CollisionEffectMessage> = None;
+                let mut num = 0;
+                let mut total_x = Vec3::ZERO.clone();
+                let collsion_R = Mat4::from_quat(c_transform.rotation);
+                let c_normal = (collsion_R * collsion.normal.extend(1.))
+                    .truncate()
+                    .normalize();
 
-                for (_, collsion, c_transform) in collsion_query.iter() {
-                    let collsion_R = Mat4::from_quat(c_transform.rotation);
+                for i in vertices.iter() {
+                    // may be w is not 1. trigger bug
+                    let xi = T + (R.mul_vec4(i.extend(1.))).truncate();
+                    let vi = velocity.0
+                        + angular_velocity
+                            .0
+                            .cross((R.mul_vec4(i.extend(1.))).truncate());
 
                     let collsion_position = c_transform.translation;
-                    let c_normal = (collsion_R * collsion.normal.extend(1.))
-                        .truncate()
-                        .normalize();
 
-                    let mut num = 0;
-                    let mut total_x = Vec3::ZERO.clone();
                     if rigid_body.collide_with_plane(&collsion_position, &c_normal, &xi)
                         && vi.dot(c_normal.clone()) < 0.
                     {
                         num += 1;
                         total_x += xi;
                     };
-
-                    if num == 0 {
-                        continue;
-                    }
-
-                    let x_mean = total_x.div(num as f32);
-                    let Rr = x_mean - T;
-                    let V = vi + angular_velocity.0.cross(Rr);
-
-                    commands.spawn().insert(CollisionEffectMessage {
-                        entity: rigid_entity,
-                        velocity: V,
-                        normal: c_normal,
-                        Rr,
-                        interial: interial,
-                    });
                 }
-                // if rigid_body.collide_with_plane(, N, x)
+                if num == 0 {
+                    continue;
+                }
+
+                let x_mean = total_x.div(num as f32);
+                let Rr = x_mean - T;
+                let V = velocity.0 + angular_velocity.0.cross(Rr);
+                effect_message = Some(CollisionEffectMessage {
+                    entity: rigid_entity,
+                    velocity: V,
+                    normal: c_normal,
+                    Rr,
+                    interial: interial,
+                });
+
+                if effect_message.is_some() {
+                    commands.spawn().insert(effect_message.unwrap());
+                }
             }
         }
     }
@@ -368,7 +386,7 @@ fn collision_effect(
     )>,
     mut restitution: ResMut<Restitution>,
 ) {
-    for (message_entity, message) in query.iter_mut() {
+    for (_message_entity, message) in query.iter_mut() {
         let mut vn = message.velocity.dot(message.normal) * message.normal;
         let mut vt = message.velocity - vn;
         // println!("1  vn {} , vt {}", vn, vt);
@@ -378,62 +396,79 @@ fn collision_effect(
         vt = a * vt;
         // println!("2  vn {} , vt {}", vn, vt);
 
-        let mut vnew = vn + vt;
+        let vnew = vn + vt;
 
-        let mut K = Mat4::IDENTITY.clone();
-        let (_entity, mut mass, mut velocity, mut angular_velocity, rigid_body) =
+        let mut K = Mat4::IDENTITY;
+        let (_entity, mass, mut velocity, mut angular_velocity, rigid_body) =
             rigidy_query.get_mut(message.entity).unwrap();
 
-        K.row(0)[0] /= mass.0;
-        K.row(1)[1] /= mass.0;
-        K.row(2)[2] /= mass.0;
-        K.row(3)[3] /= mass.0;
+        // K.row(0)[0] /= mass.0;
+        // K.row(1)[1] /= mass.0;
+        // K.row(2)[2] /= mass.0;
+        // K.row(3)[3] /= mass.0;
+
+        K.col_mut(0)[0] /= mass.0;
+        K.col_mut(1)[1] /= mass.0;
+        K.col_mut(2)[2] /= mass.0;
+        K.col_mut(3)[3] /= mass.0;
 
         let temp = vec3_to_antisymmetric_matrix4(Rr.clone())
             * message.interial.inverse()
             * vec3_to_antisymmetric_matrix4(Rr.clone());
 
-        K.row(0)[0] -= temp.row(0)[0];
-        K.row(0)[1] -= temp.row(0)[1];
-        K.row(0)[2] -= temp.row(0)[2];
-        K.row(0)[3] -= temp.row(0)[3];
+        // K.row(0)[0] -= temp.row(0)[0];
+        // K.row(0)[1] -= temp.row(0)[1];
+        // K.row(0)[2] -= temp.row(0)[2];
+        // K.row(0)[3] -= temp.row(0)[3];
 
-        K.row(1)[0] -= temp.row(1)[0];
-        K.row(1)[1] -= temp.row(1)[1];
-        K.row(1)[2] -= temp.row(1)[2];
-        K.row(1)[3] -= temp.row(1)[3];
+        // K.row(1)[0] -= temp.row(1)[0];
+        // K.row(1)[1] -= temp.row(1)[1];
+        // K.row(1)[2] -= temp.row(1)[2];
+        // K.row(1)[3] -= temp.row(1)[3];
 
-        K.row(2)[0] -= temp.row(2)[0];
-        K.row(2)[1] -= temp.row(2)[1];
-        K.row(2)[2] -= temp.row(2)[2];
+        // K.row(2)[0] -= temp.row(2)[0];
+        // K.row(2)[1] -= temp.row(2)[1];
+        // K.row(2)[2] -= temp.row(2)[2];
 
-        K.row(3)[3] -= temp.row(3)[3];
+        // K.row(3)[3] -= temp.row(3)[3];
+
+        K.col_mut(0)[0] -= temp.col(0)[0];
+        K.col_mut(1)[0] -= temp.col(1)[0];
+        K.col_mut(2)[0] -= temp.col(2)[0];
+        K.col_mut(3)[0] -= temp.col(3)[0];
+
+        K.col_mut(0)[1] -= temp.col(0)[1];
+        K.col_mut(1)[1] -= temp.col(1)[1];
+        K.col_mut(2)[1] -= temp.col(2)[1];
+        K.col_mut(3)[1] -= temp.col(3)[1];
+
+        K.col_mut(0)[2] -= temp.col(0)[2];
+        K.col_mut(1)[2] -= temp.col(1)[2];
+        K.col_mut(2)[2] -= temp.col(2)[2];
+
+        K.col_mut(3)[3] -= temp.col(3)[3];
 
         let j: Vec4 = K
             .inverse()
             .mul_vec4(vnew.extend(1.) - message.velocity.clone().extend(1.));
-        println!(
-            "K inverse {} vnew {} , vold {}, j {} , mass {}",
-            K.inverse(),
-            vnew,
-            message.velocity,
-            j,
-            mass.0
-        );
+
         let j = j.truncate();
 
-        velocity.0 = message.velocity + j / mass.0;
-        let _delta_angular_veclocity = message.interial.inverse().mul_vec4(Rr.cross(j).extend(1.));
-        let delta_angular_veclocity =
-            (_delta_angular_veclocity / _delta_angular_veclocity.w).truncate();
-        angular_velocity.0 = angular_velocity.0 + delta_angular_veclocity;
+        velocity.0 = velocity.0 + j / mass.0;
+        let _delta_angular_velocity = message
+            .interial
+            .inverse()
+            .mul_vec4((Rr.cross(j)).extend(1.));
+        // println!("delta angular velocity : {}", _delta_angular_velocity);
+        let delta_angular_velocity = (_delta_angular_velocity).truncate();
+        angular_velocity.0 = angular_velocity.0 + delta_angular_velocity;
 
         restitution.0 = restitution.0 * 0.9;
         if restitution.0 < 0.01 || angular_velocity.0.length() < 0.01 {
             restitution.0 = 0.;
         }
-        panic!();
-
+    }
+    for (message_entity, _) in query.iter() {
         commands.entity(message_entity).despawn_recursive();
     }
 }
@@ -467,25 +502,39 @@ fn get_scaled_vertices(mesh: &Mesh, scale: &Vec3) -> Vec<Vec3> {
             _v
         })
         .collect();
-    // println!("vertices {:?}", res);
+
     return res;
 }
 
 fn vec3_to_antisymmetric_matrix4(vec: Vec3) -> Mat4 {
-    let temp = Mat4::ZERO.clone();
-    temp.row(0)[0] = 0.;
-    temp.row(0)[1] = -vec.z;
-    temp.row(0)[2] = vec.y;
+    let mut temp = Mat4::ZERO;
+    // temp.row(0)[0] = 0.;
+    // temp.row(0)[1] = -vec.z;
+    // temp.row(0)[2] = vec.y;
 
-    temp.row(1)[0] = vec.z;
-    temp.row(1)[1] = 0.;
-    temp.row(1)[2] = -vec.x;
+    // temp.row(1)[0] = vec.z;
+    // temp.row(1)[1] = 0.;
+    // temp.row(1)[2] = -vec.x;
 
-    temp.row(2)[0] = -vec.y;
-    temp.row(2)[1] = vec.x;
-    temp.row(2)[2] = 0.;
+    // temp.row(2)[0] = -vec.y;
+    // temp.row(2)[1] = vec.x;
+    // temp.row(2)[2] = 0.;
 
-    temp.row(3)[3] = 1.;
+    // temp.row(3)[3] = 1.;
+
+    temp.col_mut(0)[0] = 0.;
+    temp.col_mut(1)[0] = -vec.z;
+    temp.col_mut(2)[0] = vec.y;
+
+    temp.col_mut(0)[1] = vec.z;
+    temp.col_mut(1)[1] = 0.;
+    temp.col_mut(2)[1] = -vec.x;
+
+    temp.col_mut(0)[2] = -vec.y;
+    temp.col_mut(1)[2] = vec.x;
+    temp.col_mut(2)[2] = 0.;
+
+    temp.col_mut(3)[3] = 1.;
 
     temp
 }
