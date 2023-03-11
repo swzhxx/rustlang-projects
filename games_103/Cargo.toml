@@ -1,17 +1,4 @@
-[package]
-edition = "2021"
-name = "rigid_bunny"
-version = "0.1.0"
+[workspace]
+members = ["HW1", "HW2"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-bevy = {version = "0.8.1"}
-bevy-inspector-egui = "0.12.1"
-bevy_obj = "0.8.0"
-
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
+resolver = "2"
