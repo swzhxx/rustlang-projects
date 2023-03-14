@@ -11,6 +11,7 @@ use bevy_inspector_egui::WorldInspectorPlugin;
 mod components;
 mod systems;
 use components::*;
+use systems::implict_model;
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.2, 0.2, 0.2)))
@@ -24,6 +25,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_startup_system(setup_screne)
+        .add_system(implict_model)
         .add_plugin(WireframePlugin)
         .run()
 }
@@ -53,7 +55,7 @@ fn setup_screne(
         .spawn_bundle(PbrBundle {
             transform: Transform {
                 translation: Vec3::new(4.5, -5.41331, -13.87507),
-                scale: Vec3::new(2., 2., 2.),
+                scale: Vec3::new(5., 5., 5.),
                 rotation: Quat::from_euler(EulerRot::XYZ, 0., 0., 0.),
             },
             material: materials.add(StandardMaterial {
@@ -114,7 +116,7 @@ fn setup_screne(
                 triangles[t * 6 + 2] = (j + 1) * n + i + 1;
                 triangles[t * 6 + 3] = j * n + i;
                 triangles[t * 6 + 4] = (j + 1) * n + i + 1;
-                triangles[t * 6 + 4] = (j + 1) * n + i;
+                triangles[t * 6 + 5] = (j + 1) * n + i;
 
                 t += 1;
             }
