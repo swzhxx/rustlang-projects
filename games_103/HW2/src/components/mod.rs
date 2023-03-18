@@ -40,16 +40,18 @@ impl ELV {
             _E[i * 2 + 5] = triangles[i + 0];
             i += 3;
         }
-
+        // println!("_E before {:?}",_E);
         let mut i = 0;
-        while i < triangles.len() {
+        while i < _E.len() {
             if _E[i] > _E[i + 1] {
                 _E.swap(i, i + 1);
             }
             i += 2;
         }
+        // println!("_E len {:?}",_E.len());
+        // println!("_E {:?}",_E);
         let len = _E.len();
-        println!("sort : len / 2 - 1 {:?}", len / 2 - 1);
+        // println!("sort : len / 2 - 1 {:?}", len / 2 - 1);
         ELV::sort(&mut _E, 0, (len / 2) as i32 - 1);
 
         // 计算边数量
@@ -74,13 +76,13 @@ impl ELV {
             }
             i += 2;
         }
-        println!("{:?}", E);
+        // println!("{:?}", E);
         // 构造边的初始长度
         let mut L = vec![0.; E.len() / 2];
         for i in 0..E.len() / 2 {
             let v0 = E[(i * 2 + 0) as usize];
             let v1 = E[(i * 2 + 1) as usize];
-            let _a = (vertices[v0 as usize] - vertices[v1 as usize]);
+            let _a = vertices[v0 as usize] - vertices[v1 as usize];
             L[i] = _a.length();
         }
 

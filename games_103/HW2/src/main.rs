@@ -10,6 +10,7 @@ use bevy::{
 use bevy_inspector_egui::WorldInspectorPlugin;
 mod components;
 mod systems;
+use bevy_mod_picking::{DefaultPickingPlugins, PickableBundle, PickingCameraBundle};
 use components::*;
 use systems::implict_model;
 fn main() {
@@ -27,6 +28,10 @@ fn main() {
         .add_startup_system(setup_screne)
         .add_system(implict_model)
         .add_plugin(WireframePlugin)
+        .add_plugins(bevy_mod_picking::DefaultPickingPlugins)
+        .add_plugin(bevy_transform_gizmo::TransformGizmoPlugin::new(
+            Quat::from_rotation_y(-0.2), // Align the gizmo to a different coordinate system.
+        ))
         .run()
 }
 
@@ -37,37 +42,37 @@ fn setup_screne(
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
     wireframe_config.global = false;
-    commands.spawn_bundle(Camera3dBundle {
-        transform: Transform {
-            translation: Vec3::new(-52.9, 22.3, -44.8),
-            rotation: Quat::from_euler(EulerRot::XYZ, 21.865, 126.956, 0.),
-            scale: Vec3::new(1., 1., 1.),
-        }
-        .looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
-        projection: Projection::Perspective(PerspectiveProjection {
-            fov: 12.,
+    commands
+        .spawn_bundle(Camera3dBundle {
+            transform: Transform::from_xyz(-52.9, 22.3, 44.8)
+                .looking_at(Vec3::new(0., 0., 0.), -Vec3::Y),
+            projection: Projection::Perspective(PerspectiveProjection {
+                fov: 12.,
+                ..default()
+            }),
             ..default()
-        }),
-        ..default()
-    });
+        })
+        .insert_bundle(bevy_mod_picking::PickingCameraBundle::default())
+        .insert(bevy_transform_gizmo::GizmoPickSource::default());
 
     commands
         .spawn_bundle(PbrBundle {
-            transform: Transform {
-                translation: Vec3::new(4.5, -5.41331, -13.87507),
-                scale: Vec3::new(5., 5., 5.),
-                rotation: Quat::from_euler(EulerRot::XYZ, 0., 0., 0.),
-            },
+            transform: Transform::from_xyz(4.5, -5.41331, -13.87507),
             material: materials.add(StandardMaterial {
                 base_color: Color::rgb(0.8, 0.0, 0.0),
                 metallic: 0.2,
                 perceptual_roughness: 0.5,
                 ..default()
             }),
-            mesh: meshes.add(Mesh::from(shape::Icosphere::default())),
+            mesh: meshes.add(Mesh::from(shape::Icosphere {
+                radius: 2.7,
+                ..default()
+            })),
             ..default()
         })
-        .insert(Force);
+        .insert(Force)
+        .insert_bundle(bevy_mod_picking::PickableBundle::default())
+        .insert(bevy_transform_gizmo::GizmoTransformable);
 
     commands.spawn_bundle(DirectionalLightBundle {
         transform: Transform {
@@ -122,6 +127,8 @@ fn setup_screne(
             }
         }
 
+        // println!("triangles {:?}", triangles);
+
         let _X = X
             .iter()
             .map(|item| [item.x, item.y, item.z])
@@ -142,14 +149,17 @@ fn setup_screne(
             material: materials.add(StandardMaterial {
                 base_color: Color::rgb(0., 0., 0.3),
                 emissive: Color::rgb(0., 0., 0.8),
+                cull_mode: None,
                 ..default()
             }),
             mesh: cloth,
+
             ..default()
         })
-        .insert(Wireframe)
+        // .insert(Wireframe)
         .insert_bundle(ClothBundle {
             elv: ELV::init(&triangles, &X),
             ..default()
-        });
+        })
+        .insert(Damping(0.99f32));
 }

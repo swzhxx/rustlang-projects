@@ -9,7 +9,8 @@ version = "0.1.0"
 bevy = {version = "0.8.1"}
 bevy-inspector-egui = "0.12.1"
 bevy_obj = "0.8.0"
-
+bevy_mod_picking = "0.8.2"
+bevy_transform_gizmo = "0.3.0"
 [profile.dev]
 opt-level = 1
 

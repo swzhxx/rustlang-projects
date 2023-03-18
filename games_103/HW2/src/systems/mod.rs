@@ -1,10 +1,7 @@
 use bevy::prelude::*;
 
-use crate::components::{Damping, Mass, SpringK, ELV};
+use crate::components::{Damping, Force, Mass, SpringK, ELV};
 
-pub fn collision_handling() {}
-
-const GRAVITY: Vec3 = Vec3::new(0., -9.8, 0.);
 const rho: f32 = 0.995;
 
 // 隐式积分更新
@@ -19,9 +16,12 @@ pub fn implict_model(
         Option<&Damping>,
         &SpringK,
     )>,
+    forces: Query<(Entity, &Force, &Handle<Mesh>, &Transform)>,
     timer: Res<Time>,
 ) {
-    let mut t = 0.033_f32;
+    let t = 0.033_f32;
+    let dt2_inverse = 1. / (t * t);
+    let GRAVITY: Vec3 = Vec3::new(0., -9.8, 0.);
     let get_gradient = |X: &Vec<Vec3>,
                         X_hat: &Vec<Vec3>,
                         G: &mut Vec<Vec3>,
@@ -30,7 +30,7 @@ pub fn implict_model(
                         mass: f32,
                         spring_k: f32| {
         for i in 0..G.len() {
-            G[i] = 1. / t.sqrt() * mass * (X[i] - X_hat[i]) - mass * GRAVITY;
+            G[i] = dt2_inverse * mass * (X[i] - X_hat[i]) - mass * GRAVITY;
         }
         for e in 0..E.len() / 2 {
             let indexI = E[e * 2] as usize;
@@ -44,7 +44,7 @@ pub fn implict_model(
     };
 
     for (entity, mass, mut klv, handle_mesh, damping, spring_k) in cloths.iter_mut() {
-        if let (mesh) = meshes.get_mut(handle_mesh).unwrap() {
+        if let mesh = meshes.get_mut(handle_mesh).unwrap() {
             let mut G = vec![Vec3::default(); mesh.count_vertices()];
             let mut X: Vec<Vec3> = mesh
                 .attribute(Mesh::ATTRIBUTE_POSITION)
@@ -60,7 +60,7 @@ pub fn implict_model(
 
             for i in 0..klv.V.len() {
                 klv.V[i] *= if damping.is_none() {
-                    0.
+                    1.
                 } else {
                     damping.unwrap().0
                 };
@@ -75,7 +75,7 @@ pub fn implict_model(
                 if k == 0 {
                     w = 1.;
                 } else if k == 1 {
-                    w = 2. / (2. - rho * rho)
+                    w = 2. / (2. - rho * rho);
                 } else {
                     w = 4. / (4. - rho * rho * w);
                 }
@@ -85,7 +85,8 @@ pub fn implict_model(
                         continue;
                     }
                     let old_x = X[i].clone();
-                    X[i] = w * (X[i] - 1. / (1. / t.sqrt() * mass.0 + 4. * spring_k.0) * G[i])
+
+                    X[i] = w * (X[i] - 1. / (dt2_inverse * mass.0 + 4. * spring_k.0) * G[i])
                         + (1. - w) * last_X[i];
 
                     last_X[i] = old_x;
@@ -96,8 +97,11 @@ pub fn implict_model(
                 if i == 20 {
                     continue;
                 }
-                klv.V[i] += 1. / t * (X[i] - X_hat[i])
+                let _v = 1. / t * (X[i] - X_hat[i]);
+
+                klv.V[i] += _v;
             }
+            // println!(" X {:?}", X);
             mesh.insert_attribute(
                 Mesh::ATTRIBUTE_POSITION,
                 X.iter()
@@ -105,7 +109,24 @@ pub fn implict_model(
                     .collect::<Vec<[f32; 3]>>(),
             );
 
-            collision_handling()
+            // collision_handling
+            let (_, _, _, sphere) = forces.get_single().unwrap();
+            let c = sphere.translation;
+            for i in 0..X.len() {
+                let vertice = X[i];
+                let dis = (vertice - c).length();
+                if dis < 2.7 {
+                    klv.V[i] += 1. / t * (c + 2.7 * (X[i] - c) / (X[i] - c).length() - X[i]);
+                    X[i] = c + 2.7 * (X[i] - c) / (X[i] - c).length();
+                }
+            }
+            mesh.insert_attribute(
+                Mesh::ATTRIBUTE_POSITION,
+                X.iter()
+                    .map(|item| [item.x, item.y, item.z])
+                    .collect::<Vec<[f32; 3]>>(),
+            );
+            // panic!()
         }
     }
 }
