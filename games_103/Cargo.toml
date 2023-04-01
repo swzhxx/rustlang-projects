@@ -1,4 +1,6 @@
 [workspace]
-members = ["HW1", "HW2", "physis_rapier"]
-
+members = ["HW1", "HW2"]
+exclude= ["physis_rapier"]
 resolver = "2"
+
+
