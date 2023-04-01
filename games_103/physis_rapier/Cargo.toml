@@ -1,15 +1,19 @@
 [package]
-name = "physis_rapier"
-version = "0.1.0"
 edition = "2021"
+name = "physis_rapier"
+resolver = "2"
+version = "0.1.0"
 
 [[example]]
 name = "using-rapier"
 path = "examples/example-using-rapier.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
+[[example]]
+name = "bevy-rapier-getting-started"
+path = "examples/example-bevy-rapier-getting-started.rs"
 
 [dependencies]
-
+bevy = "0.10.0"
+bevy_rapier3d = {version = "0.21.0", features = ["simd-stable", "debug-render-3d"]}
 # TODO: Replace the * by the latest version number.
-rapier3d = { version = "*", features = [ "simd-stable" ] }
+rapier3d = {version = "*", features = ["simd-stable"]}
