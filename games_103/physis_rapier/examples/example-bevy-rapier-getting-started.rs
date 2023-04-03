@@ -22,19 +22,42 @@ fn setup_graphics(mut commands: Commands) {
     });
 }
 
-fn setup_physics(mut commands: Commands) {
+fn setup_physics(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
     /* Create the ground. */
     commands
         .spawn(Collider::cuboid(100.0, 0.1, 100.0))
         .insert(TransformBundle::from(Transform::from_xyz(0.0, -2.0, 0.0)));
 
+    let shape = shape::Cube::default();
+    let mesh = Mesh::from(shape);
+    let mesh_handle = meshes.add(mesh.clone());
     /* Create the bouncing ball. */
+    // commands
+    //     .spawn(RigidBody::Dynamic)
+    //     .insert(Sensor)
+    //     .insert(Collider::ball(0.5))
+    //     .insert(Restitution::coefficient(0.7))
+    //     .insert(TransformBundle::from(Transform::from_xyz(0.0, 4.0, 0.0)));
+
     commands
-        .spawn(RigidBody::Dynamic)
-        // .insert(Sensor)
-        .insert(Collider::ball(0.5))
-        .insert(Restitution::coefficient(0.7))
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, 4.0, 0.0)));
+        .spawn(PbrBundle {
+            mesh: mesh_handle.clone(),
+            material: materials.add(StandardMaterial {
+                base_color: Color::rgb(0.3, 0.5, 0.3),
+                metallic: 0.2,
+                perceptual_roughness: 0.5,
+                ..default()
+            }),
+            ..default()
+        })
+        .insert(RigidBody::Dynamic)
+        .insert(Sensor)
+        .insert(Collider::from_bevy_mesh(&mesh, &ComputedColliderShape::TriMesh).unwrap())
+        .insert(Restitution::coefficient(0.7));
 }
 
 fn print_ball_altitude(positions: Query<&Transform, With<RigidBody>>) {
@@ -58,18 +81,42 @@ fn display_events(
 
 fn display_intersection_info(
     rapier_context: Res<RapierContext>,
-    query: Query<Entity, With<RigidBody>>,
+    query: Query<(Entity, &Handle<Mesh>, With<RigidBody>)>,
+    meshes: Res<Assets<Mesh>>,
 ) {
-    for (entity) in query.iter() {
+    for (entity, handle_mesh, _) in query.iter() {
         /* Iterate through all the intersection pairs involving a specific collider. */
         for (collider1, collider2, intersecting) in rapier_context.intersections_with(entity) {
             println!("intersecting {:?}", intersecting);
-            if intersecting {
-                println!(
-                    "The entities {:?} and {:?} have intersecting colliders!",
-                    collider1, collider2
-                );
+            if intersecting == false {
+                break;
+            }
+            let other_collider = if entity == collider1 {
+                collider2
+            } else {
+                collider1
+            };
+            if let Some(mesh) = meshes.get(handle_mesh) {
+                let vertices = get_mesh_vertices(mesh);
             }
         }
     }
+}
+
+fn get_mesh_vertices(mesh: &Mesh) -> Vec<Vec3> {
+    let vertices = mesh
+        .attribute(Mesh::ATTRIBUTE_POSITION)
+        .unwrap()
+        .as_float3()
+        .unwrap();
+
+    let res = vertices
+        .iter()
+        .map(move |v| {
+            let _v = Vec3::new(v[0], v[1], v[2]);
+            _v
+        })
+        .collect();
+
+    return res;
 }
