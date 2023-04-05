@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::mesh::Indices};
 use bevy_rapier3d::prelude::*;
 
 fn main() {
@@ -81,10 +81,10 @@ fn display_events(
 
 fn display_intersection_info(
     rapier_context: Res<RapierContext>,
-    query: Query<(Entity, &Handle<Mesh>, With<RigidBody>)>,
+    query: Query<(Entity, &Handle<Mesh>, &Transform, With<RigidBody>)>,
     meshes: Res<Assets<Mesh>>,
 ) {
-    for (entity, handle_mesh, _) in query.iter() {
+    for (entity, handle_mesh, transform, _) in query.iter() {
         /* Iterate through all the intersection pairs involving a specific collider. */
         for (collider1, collider2, intersecting) in rapier_context.intersections_with(entity) {
             println!("intersecting {:?}", intersecting);
@@ -97,7 +97,34 @@ fn display_intersection_info(
                 collider1
             };
             if let Some(mesh) = meshes.get(handle_mesh) {
-                let vertices = get_mesh_vertices(mesh);
+                let vertices_ref = get_mesh_vertices(mesh);
+                let vertices = vertices_ref
+                    .iter()
+                    .map(|vertice| {
+                        return transform.transform_point(vertice.clone());
+                    })
+                    .collect::<Vec<Vec3>>();
+                let edges = get_mesh_edge(mesh);
+
+                let mut collider_vertices: Vec<Vec3> = vec![];
+                let mut collider_edges: Vec<Vec3> = vec![];
+
+                for vertice in vertices.iter() {
+                    rapier_context.intersections_with_point(
+                        vertice.clone(),
+                        QueryFilter::default(),
+                        |entity| {
+                            println!("callback {:?} {:?}", entity, vertice);
+                            true
+                            // if entity != other_collider {
+                            //     false
+                            // } else {
+                            //     true
+                            // }
+                        },
+                    )
+                }
+                // rapier_context.intersection_pair(other_collider, collider2);
             }
         }
     }
@@ -119,4 +146,25 @@ fn get_mesh_vertices(mesh: &Mesh) -> Vec<Vec3> {
         .collect();
 
     return res;
+}
+
+fn get_mesh_edge(mesh: &Mesh) -> Vec<(usize, usize)> {
+    let indices = mesh.indices().unwrap();
+    let mut edges = vec![];
+    let mut temp = vec![];
+    for index in indices.iter() {
+        if temp.len() < 3 {
+            temp.push(index);
+        } else {
+            edges.push((temp[0], temp[1]));
+            edges.push((temp[1], temp[2]));
+            edges.push((temp[2], temp[0]));
+            temp.clear();
+        }
+    }
+    edges
+}
+
+fn get_mesh_edge_len(vertices: &Vec<Vec3>, edges: &Vec<(usize, usize)>) -> Vec<f32> {
+    todo!()
 }
