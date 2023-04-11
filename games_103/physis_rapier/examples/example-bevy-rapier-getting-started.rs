@@ -105,26 +105,51 @@ fn display_intersection_info(
                     })
                     .collect::<Vec<Vec3>>();
                 let edges = get_mesh_edge(mesh);
+                let edges_length = get_mesh_edge_len(&vertices, &edges);
 
-                let mut collider_vertices: Vec<Vec3> = vec![];
-                let mut collider_edges: Vec<Vec3> = vec![];
+                let mut collider_vertices_index: Vec<usize> = vec![];
+                let mut collider_edges_index: Vec<usize> = vec![];
 
-                for vertice in vertices.iter() {
+                for (i, vertice) in vertices.iter().enumerate() {
                     rapier_context.intersections_with_point(
                         vertice.clone(),
                         QueryFilter::default(),
                         |entity| {
-                            println!("callback {:?} {:?}", entity, vertice);
+                            // println!("callback {:?} {:?}", entity, vertice);
+
+                            if entity != other_collider {
+                                collider_vertices_index.push(i)
+                            } else {
+                            }
                             true
-                            // if entity != other_collider {
-                            //     false
-                            // } else {
-                            //     true
-                            // }
+                        },
+                    )
+                }
+                println!("edges length {:?}", edges_length);
+                for (i, edge) in edges.iter().enumerate() {
+                    let len = edges_length[i];
+                    let start = vertices[edge.0];
+                    let end = vertices[edge.1];
+                    let dir = end - start;
+                    if len == 0. {
+                        continue;
+                    }
+                    rapier_context.intersections_with_ray(
+                        start,
+                        dir,
+                        len,
+                        false,
+                        QueryFilter::default(),
+                        |entry, intersection| {
+                            if entity != other_collider && intersection.toi != 0. {
+                                collider_edges_index.push(i)
+                            }
+                            true
                         },
                     )
                 }
                 // rapier_context.intersection_pair(other_collider, collider2);
+                println!("collider_edges_index {:?}", collider_edges_index);
             }
         }
     }
@@ -166,5 +191,13 @@ fn get_mesh_edge(mesh: &Mesh) -> Vec<(usize, usize)> {
 }
 
 fn get_mesh_edge_len(vertices: &Vec<Vec3>, edges: &Vec<(usize, usize)>) -> Vec<f32> {
-    todo!()
+    edges
+        .iter()
+        .map(|edge| {
+            let v1 = vertices[edge.0];
+            let v2 = vertices[edge.1];
+            let len = (v1 - v2).length();
+            return len;
+        })
+        .collect::<Vec<f32>>()
 }
