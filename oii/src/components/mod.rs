@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::system::EntityCommands, prelude::*};
 
 #[derive(Debug)]
 pub struct FileDescriptor {
@@ -23,34 +23,77 @@ pub struct ModifyPickedFile {
 
 #[derive(Component)]
 pub struct VerticeNodes {
-    pub nodes: Vec<CheckNode>,
-    pub entity: Option<Entity>,
+    nodes: Vec<Entity>,
 }
 
 impl VerticeNodes {
-    pub fn new(mut commands: Commands, mut query: Query<&mut VerticeNodes>) -> Entity {
-        let mut nodes = VerticeNodes {
-            nodes: vec![],
-            entity: None,
-        };
-        let entity = commands.spawn(nodes).id();
-        // nodes.entity = Some(entity.clone());
-        query
-            .get_component_mut::<VerticeNodes>(entity)
-            .unwrap()
-            .entity = Some(entity);
-        entity
+    pub fn new() -> Self {
+        let nodes = VerticeNodes { nodes: vec![] };
+        nodes
     }
-    pub fn add(&mut self, mut commands: Commands) -> Entity {
-        // commands.entity(self.entity).spawn()
-        todo!()
+    pub fn create_with_entity(
+        mut commands: Commands,
+        query: Query<(Entity, &Handle<Mesh>)>,
+        mut meshes: ResMut<Assets<Mesh>>,
+    ) -> anyhow::Result<Self> {
+        let (entity, handle_mesh) = query.single();
+        let mut vertice_nodes = VerticeNodes::new();
+        let handle = meshes.add(
+            Mesh::try_from(shape::Icosphere {
+                radius: 0.3,
+                ..default()
+            })
+            .unwrap(),
+        );
+        let mesh = meshes.get(handle_mesh);
+        if mesh.is_none() {
+            error!("mesh not found")
+        }
+        let vertices = mesh
+            .unwrap()
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .unwrap()
+            .as_float3()
+            .unwrap();
+        for (index, vertice) in vertices.iter().enumerate() {
+            let check_node = CheckNode {
+                index,
+                checked: false,
+            };
+            let node_entity =
+                vertice_nodes.add(entity, &mut commands, &handle, check_node, vertice);
+            vertice_nodes.nodes.push(node_entity);
+        }
+        Ok(vertice_nodes)
+    }
+    fn add(
+        &mut self,
+        parent_entity: Entity,
+        commands: &mut Commands,
+        mesh_handle: &Handle<Mesh>,
+        check_node: CheckNode,
+        position: &[f32; 3],
+    ) -> Entity {
+        let e = commands
+            .get_entity(parent_entity)
+            .unwrap()
+            .insert(PbrBundle {
+                mesh: mesh_handle.clone(),
+                transform: Transform::from_translation(Vec3::new(
+                    position[0],
+                    position[1],
+                    position[2],
+                )),
+                ..default()
+            })
+            .insert(check_node)
+            .id();
+        e
     }
 }
 
 #[derive(Component)]
 pub struct CheckNode {
-    pub root_entity: Entity,
     pub index: usize,
     pub checked: bool,
-    pub ball_entity: Entity,
 }
