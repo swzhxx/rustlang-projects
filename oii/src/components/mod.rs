@@ -1,4 +1,7 @@
-use bevy::{ecs::system::EntityCommands, prelude::*};
+use bevy::{
+    ecs::{system::EntityCommands, world},
+    prelude::*,
+};
 
 #[derive(Debug)]
 pub struct FileDescriptor {
@@ -22,21 +25,20 @@ pub struct ModifyPickedFile {
 }
 
 #[derive(Component)]
-pub struct VerticeNodes {
-    nodes: Vec<Entity>,
-}
+pub struct VerticeNodes;
 
 impl VerticeNodes {
     pub fn new() -> Self {
-        let nodes = VerticeNodes { nodes: vec![] };
+        let nodes = VerticeNodes;
         nodes
     }
     pub fn create_with_entity(
         mut commands: Commands,
+        root_entity: Entity,
+        handle_mesh: &Handle<Mesh>,
         query: Query<(Entity, &Handle<Mesh>)>,
         mut meshes: ResMut<Assets<Mesh>>,
-    ) -> anyhow::Result<Self> {
-        let (entity, handle_mesh) = query.single();
+    ) -> anyhow::Result<()> {
         let mut vertice_nodes = VerticeNodes::new();
         let handle = meshes.add(
             Mesh::try_from(shape::Icosphere {
@@ -49,6 +51,7 @@ impl VerticeNodes {
         if mesh.is_none() {
             error!("mesh not found")
         }
+        let entity = commands.spawn(vertice_nodes).id();
         let vertices = mesh
             .unwrap()
             .attribute(Mesh::ATTRIBUTE_POSITION)
@@ -60,32 +63,40 @@ impl VerticeNodes {
                 index,
                 checked: false,
             };
-            let node_entity =
-                vertice_nodes.add(entity, &mut commands, &handle, check_node, vertice);
-            vertice_nodes.nodes.push(node_entity);
+            let node_entity = vertice_nodes.add(&mut commands, &handle, check_node, vertice);
+            commands.get_entity(entity).unwrap().add_child(node_entity);
         }
-        Ok(vertice_nodes)
+
+        commands.get_entity(root_entity).unwrap().add_child(entity);
+
+        Ok(())
+    }
+
+    pub fn get_child_check_nodes(&self, mut world: World) -> Vec<(Entity, &CheckNode)> {
+        let query = world.query::<(Entity, &CheckNode)>();
+        // for query.iter()
+        todo!()
     }
 
     fn add(
         &mut self,
-        parent_entity: Entity,
         commands: &mut Commands,
         mesh_handle: &Handle<Mesh>,
         check_node: CheckNode,
         position: &[f32; 3],
     ) -> Entity {
         let e = commands
-            .get_entity(parent_entity)
-            .unwrap()
-            .insert(PbrBundle {
+            .spawn(PbrBundle {
                 mesh: mesh_handle.clone(),
-               
                 transform: Transform::from_translation(Vec3::new(
                     position[0],
                     position[1],
                     position[2],
                 )),
+                visibility: match check_node.checked {
+                    false => Visibility::Hidden,
+                    true => Visibility::Inherited,
+                },
                 ..default()
             })
             .insert(check_node)
