@@ -66,6 +66,7 @@ impl VerticeNodes {
         }
         Ok(vertice_nodes)
     }
+
     fn add(
         &mut self,
         parent_entity: Entity,
@@ -79,6 +80,7 @@ impl VerticeNodes {
             .unwrap()
             .insert(PbrBundle {
                 mesh: mesh_handle.clone(),
+               
                 transform: Transform::from_translation(Vec3::new(
                     position[0],
                     position[1],
