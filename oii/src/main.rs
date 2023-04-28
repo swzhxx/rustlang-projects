@@ -4,10 +4,10 @@ mod controlls;
 mod system;
 mod ui;
 mod utils;
+use bevy_mod_picking::DefaultPickingPlugins;
 use components::*;
 use controlls::{OrbitController, OrbitControllerPlugin};
 use nalgebra::Translation;
-
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -17,6 +17,7 @@ fn main() {
         }),
         ..default()
     }))
+    .add_plugins(DefaultPickingPlugins)
     .add_plugin(bevy_egui::EguiPlugin)
     .add_plugin(OrbitControllerPlugin)
     .add_plugin(WireframePlugin)
