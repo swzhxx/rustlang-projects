@@ -28,7 +28,7 @@ impl Default for OrbitController {
             pitch_range: 0.01..=3.13,
             distance: 5.,
             center: Vec3::ZERO,
-            rotate_sensitivity: 1.,
+            rotate_sensitivity: 0.6,
             pan_sensitivity: 1.,
             zoom_sensitivity: 0.8,
             rotate_button: MouseButton::Left,

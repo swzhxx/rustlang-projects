@@ -10,15 +10,15 @@ use rapier3d::parry::bounding_volume;
 use std::{fs::File, io::BufReader};
 
 pub fn render_obj(
-    modify_picked_file_query: Query<&ModifyPickedFile>,
-    mut query: Query<(&mut PickedFiles)>,
+    modify_picked_file_query: Query<(Entity, &ModifyPickedFile)>,
+    mut query: Query<&mut PickedFiles>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut query_mesh: Query<(Entity, &Handle<Mesh>)>,
 ) {
-    let (mut picked_files) = query.single_mut();
-    for modify_event in modify_picked_file_query.iter() {
+    let mut picked_files = query.single_mut();
+    for (modify_entity, modify_event) in modify_picked_file_query.iter() {
         if let Some(current_index) = modify_event.current_index {
             let file = &picked_files.files[current_index];
             if let Ok(res) = File::open(&file.path) {
@@ -97,5 +97,6 @@ pub fn render_obj(
                 }
             }
         }
+        commands.entity(modify_entity).despawn_recursive();
     }
 }

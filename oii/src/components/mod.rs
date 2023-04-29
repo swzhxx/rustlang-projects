@@ -2,6 +2,7 @@ use bevy::{
     ecs::{entity, system::EntityCommands, world::World},
     prelude::*,
 };
+use bevy_mod_picking::PickableBundle;
 
 #[derive(Debug)]
 pub struct FileDescriptor {
@@ -99,16 +100,19 @@ impl VerticeNodes {
         materials: &mut ResMut<Assets<StandardMaterial>>,
     ) -> Entity {
         let e = commands
-            .spawn(PbrBundle {
-                mesh: mesh_handle.clone(),
-                material: materials.add(StandardMaterial::from(Color::rgb(1., 1., 1.))),
-                transform: Transform::from_translation(Vec3::new(
-                    position[0],
-                    position[1],
-                    position[2],
-                )),
-                ..default()
-            })
+            .spawn((
+                PbrBundle {
+                    mesh: mesh_handle.clone(),
+                    material: materials.add(StandardMaterial::from(Color::rgb(1., 1., 1.))),
+                    transform: Transform::from_translation(Vec3::new(
+                        position[0],
+                        position[1],
+                        position[2],
+                    )),
+                    ..default()
+                },
+                PickableBundle::default(),
+            ))
             .insert(check_node)
             .id();
         e
