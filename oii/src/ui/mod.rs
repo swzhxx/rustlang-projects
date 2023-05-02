@@ -1,17 +1,25 @@
 use bevy::{
     pbr::wireframe::WireframeConfig,
     prelude::{Query, *},
+    tasks::IoTaskPool,
 };
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use rfd;
-use std::fs;
+use std::{
+    fs::{self, File},
+    io::Write,
+};
 
-use crate::components::{FileDescriptor, ModifyPickedFile, PickedFiles};
-pub fn ui_system(
+use crate::components::{CheckNode, FileDescriptor, ModifyPickedFile, PickedFiles, VerticeNodes};
+
+pub fn ui_system<'a>(
     mut contexts: EguiContexts,
     mut picked_files_query: Query<&mut PickedFiles>,
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
+    nodes_query: Query<(Entity, &VerticeNodes)>,
+    child_query: Query<(Entity, &Children)>,
+    checknode_query: Query<(Entity, &'a CheckNode)>,
 ) {
     egui::Window::new("file").show(contexts.ctx_mut(), |ui| {
         let mut picked_files = picked_files_query.single_mut();
@@ -52,6 +60,31 @@ pub fn ui_system(
             &mut picked_files.show_selected_point,
             "display selectable vertices ball",
         );
+        ui.separator();
+        if ui.button("Save").clicked() {
+            if picked_files.picked_folder_path.is_some() && picked_files.current_index.is_some() {
+                let (node_entity, _) = nodes_query
+                    .get(picked_files.current_entity.as_ref().unwrap().clone())
+                    .unwrap();
+                let (_, children) = child_query.get(node_entity).unwrap();
+                let mut v = vec![];
+                for child in children.iter() {
+                    if let Ok((_, checkNode)) = checknode_query.get(child.clone()) {
+                        v.push(checkNode)
+                    }
+                }
+
+                let path = picked_files.files[picked_files.current_index.unwrap()]
+                    .path
+                    .to_string();
+                let json = serde_json::to_string(&v).unwrap();
+                IoTaskPool::get().spawn(async move {
+                    File::create(format!("{}.json", &path))
+                        .and_then(|mut file| file.write(json.as_bytes()))
+                        .expect("Error Save Failed");
+                });
+            }
+        }
         ui.separator();
         ui.collapsing("Click to see what is hidden!", |ui| {
             // ui.label("Not much, as it turns out");

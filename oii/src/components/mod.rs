@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_mod_picking::PickableBundle;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct FileDescriptor {
@@ -25,7 +26,7 @@ pub struct ModifyPickedFile {
     pub current_index: Option<usize>,
 }
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct VerticeNodes {
     entity: Option<Entity>,
 }
@@ -119,7 +120,7 @@ impl VerticeNodes {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize, Reflect)]
 pub struct CheckNode {
     pub index: usize,
     pub checked: bool,

@@ -14,3 +14,5 @@ obj-rs = {version = "0.6", default-features = false}
 rapier3d = "0.17.2"
 rfd = "0.11"
 bevy_mod_picking = "0.12.0"
+serde = "1.0.160"
+serde_json = "1.0.96"
