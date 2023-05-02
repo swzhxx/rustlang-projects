@@ -26,7 +26,7 @@ pub struct ModifyPickedFile {
     pub current_index: Option<usize>,
 }
 
-#[derive(Component, Serialize, Deserialize)]
+#[derive(Component, Reflect, Default, Serialize, Deserialize)]
 pub struct VerticeNodes {
     entity: Option<Entity>,
 }
@@ -80,13 +80,15 @@ impl VerticeNodes {
         Ok(())
     }
 
-    pub fn get_child_check_nodes<'a>(&'a self, world: &'a mut World) -> Vec<(Entity, &CheckNode)> {
-        let mut query = world.query::<(Entity, &Children)>();
-        let mut query_child = world.query::<(Entity, &CheckNode)>();
+    pub fn get_child_check_nodes<'a>(
+        &'a self,
+        q: &Query<(Entity, &Children)>,
+        q_child: &'a Query<(Entity, &'a CheckNode)>,
+    ) -> Vec<(Entity, &'a CheckNode)> {
+        let (_, children) = q.get(self.entity.unwrap()).unwrap();
         let mut v = vec![];
-        let (entity, children) = query.get(world, self.entity.unwrap()).unwrap();
         for child in children.iter() {
-            if let Ok((_, checkNode)) = query_child.get(world, child.clone()) {
+            if let Ok((_, checkNode)) = q_child.get(child.clone()) {
                 v.push((child.clone(), checkNode))
             }
         }
@@ -120,7 +122,7 @@ impl VerticeNodes {
     }
 }
 
-#[derive(Component, Serialize, Deserialize, Reflect)]
+#[derive(Component, Clone, Reflect, Default, Serialize, Deserialize)]
 pub struct CheckNode {
     pub index: usize,
     pub checked: bool,
