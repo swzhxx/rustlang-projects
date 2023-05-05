@@ -1,7 +1,9 @@
 use bevy::{
-    ecs::{system::EntityCommands, world},
+    ecs::{entity, system::EntityCommands, world::World},
     prelude::*,
 };
+use bevy_mod_picking::PickableBundle;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct FileDescriptor {
@@ -24,25 +26,28 @@ pub struct ModifyPickedFile {
     pub current_index: Option<usize>,
 }
 
-#[derive(Component)]
-pub struct VerticeNodes;
+#[derive(Component, Reflect, Default, Serialize, Deserialize)]
+pub struct VerticeNodes {
+    entity: Option<Entity>,
+}
 
 impl VerticeNodes {
     pub fn new() -> Self {
-        let nodes = VerticeNodes;
+        let nodes = VerticeNodes { entity: None };
         nodes
     }
     pub fn create_with_entity(
-        mut commands: Commands,
+        commands: &mut Commands,
         root_entity: Entity,
         handle_mesh: &Handle<Mesh>,
-        query: Query<(Entity, &Handle<Mesh>)>,
-        mut meshes: ResMut<Assets<Mesh>>,
+        query: &Query<(Entity, &Handle<Mesh>)>,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        materials: &mut ResMut<Assets<StandardMaterial>>,
     ) -> anyhow::Result<()> {
         let mut vertice_nodes = VerticeNodes::new();
         let handle = meshes.add(
             Mesh::try_from(shape::Icosphere {
-                radius: 0.3,
+                radius: 0.03,
                 ..default()
             })
             .unwrap(),
@@ -51,7 +56,12 @@ impl VerticeNodes {
         if mesh.is_none() {
             error!("mesh not found")
         }
-        let entity = commands.spawn(vertice_nodes).id();
+        let entity = commands.spawn_empty().id();
+        vertice_nodes.entity = Some(entity);
+        commands
+            .entity(entity)
+            .insert(vertice_nodes)
+            .insert(PbrBundle { ..default() });
         let vertices = mesh
             .unwrap()
             .attribute(Mesh::ATTRIBUTE_POSITION)
@@ -63,19 +73,52 @@ impl VerticeNodes {
                 index,
                 checked: false,
             };
-            let node_entity = vertice_nodes.add(&mut commands, &handle, check_node, vertice);
+            let node_entity = Self::add(commands, &handle, check_node, vertice, materials);
             commands.get_entity(entity).unwrap().add_child(node_entity);
         }
-
         commands.get_entity(root_entity).unwrap().add_child(entity);
-
         Ok(())
     }
 
-    pub fn get_child_check_nodes(&self, mut world: World) -> Vec<(Entity, &CheckNode)> {
-        let query = world.query::<(Entity, &CheckNode)>();
-        // for query.iter()
-        todo!()
+    pub fn get_child_check_nodes<'a>(
+        &'a self,
+        q: &Query<(Entity, &Children)>,
+        q_child: &'a Query<(Entity, &'a CheckNode)>,
+    ) -> Vec<(Entity, &'a CheckNode)> {
+        let (_, children) = q.get(self.entity.unwrap()).unwrap();
+        let mut v = vec![];
+        for child in children.iter() {
+            if let Ok((_, checkNode)) = q_child.get(child.clone()) {
+                v.push((child.clone(), checkNode))
+            }
+        }
+        v
+    }
+
+    fn add(
+        commands: &mut Commands,
+        mesh_handle: &Handle<Mesh>,
+        check_node: CheckNode,
+        position: &[f32; 3],
+        materials: &mut ResMut<Assets<StandardMaterial>>,
+    ) -> Entity {
+        let e = commands
+            .spawn((
+                PbrBundle {
+                    mesh: mesh_handle.clone(),
+                    material: materials.add(StandardMaterial::from(Color::rgb(1., 1., 1.))),
+                    transform: Transform::from_translation(Vec3::new(
+                        position[0],
+                        position[1],
+                        position[2],
+                    )),
+                    ..default()
+                },
+                PickableBundle::default(),
+            ))
+            .insert(check_node)
+            .id();
+        e
     }
 
     fn add(
@@ -105,7 +148,7 @@ impl VerticeNodes {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Reflect, Default, Serialize, Deserialize)]
 pub struct CheckNode {
     pub index: usize,
     pub checked: bool,

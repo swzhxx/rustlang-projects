@@ -1,5 +1,5 @@
 use crate::{
-    components::{ModifyPickedFile, PickedFiles},
+    components::{ModifyPickedFile, PickedFiles, VerticeNodes},
     utils::create_mesh,
 };
 use bevy::pbr::wireframe::Wireframe;
@@ -10,14 +10,15 @@ use rapier3d::parry::bounding_volume;
 use std::{fs::File, io::BufReader};
 
 pub fn render_obj(
-    modify_picked_file_query: Query<&ModifyPickedFile>,
-    mut query: Query<(&mut PickedFiles)>,
+    modify_picked_file_query: Query<(Entity, &ModifyPickedFile)>,
+    mut query: Query<&mut PickedFiles>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut query_mesh: Query<(Entity, &Handle<Mesh>)>,
 ) {
-    let (mut picked_files) = query.single_mut();
-    for modify_event in modify_picked_file_query.iter() {
+    let mut picked_files = query.single_mut();
+    for (modify_entity, modify_event) in modify_picked_file_query.iter() {
         if let Some(current_index) = modify_event.current_index {
             let file = &picked_files.files[current_index];
             if let Ok(res) = File::open(&file.path) {
@@ -75,7 +76,7 @@ pub fn render_obj(
                     }
                     let entity = commands
                         .spawn(PbrBundle {
-                            mesh: handle,
+                            mesh: handle.clone(),
                             material: materials.add(StandardMaterial {
                                 base_color: Color::rgb(1., 1., 1.),
                                 ..default()
@@ -84,11 +85,18 @@ pub fn render_obj(
                         })
                         .id();
                     picked_files.current_entity = Some(entity);
+                    VerticeNodes::create_with_entity(
+                        &mut commands,
+                        entity,
+                        &handle,
+                        &query_mesh,
+                        &mut meshes,
+                        &mut materials,
+                    );
                     picked_files.current_index = Some(current_index);
                 }
             }
         }
+        commands.entity(modify_entity).despawn_recursive();
     }
 }
-
-
