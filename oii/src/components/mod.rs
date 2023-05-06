@@ -121,31 +121,6 @@ impl VerticeNodes {
         e
     }
 
-    fn add(
-        &mut self,
-        commands: &mut Commands,
-        mesh_handle: &Handle<Mesh>,
-        check_node: CheckNode,
-        position: &[f32; 3],
-    ) -> Entity {
-        let e = commands
-            .spawn(PbrBundle {
-                mesh: mesh_handle.clone(),
-                transform: Transform::from_translation(Vec3::new(
-                    position[0],
-                    position[1],
-                    position[2],
-                )),
-                visibility: match check_node.checked {
-                    false => Visibility::Hidden,
-                    true => Visibility::Inherited,
-                },
-                ..default()
-            })
-            .insert(check_node)
-            .id();
-        e
-    }
 }
 
 #[derive(Component, Clone, Reflect, Default, Serialize, Deserialize)]
