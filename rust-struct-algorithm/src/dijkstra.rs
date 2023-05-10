@@ -1,7 +1,5 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
-use crate::graph_adjlist::Vertex;
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 struct Vertex<'a> {
     name: &'a str,
@@ -54,6 +52,29 @@ fn dijkstra<'a>(
         vertex: start,
         distance: 0,
     });
+
+    while let Some(Visit { vertex, distance }) = to_visit.pop() {
+        // 已访问过该点，继续下一个点
+        if !visited.insert(vertex) {
+            continue;
+        }
+        // 获取邻点
+        if let Some(neighbors) = adj_list.get(&vertex) {
+            for (neighbor, cost) in neighbors {
+                let new_distance = distance + cost;
+                let is_shorter = distances
+                    .get(&neighbor)
+                    .map_or(true, |&curr| new_distance < curr);
+                if is_shorter {
+                    distances.insert(*neighbor, new_distance);
+                    to_visit.push(Visit {
+                        vertex: *neighbor,
+                        distance: new_distance,
+                    })
+                }
+            }
+        }
+    }
 
     distances
 }
