@@ -1,5 +1,6 @@
 mod binary_heap;
 mod binary_tree;
+mod conshash;
 mod dijkstra;
 mod graph_adjlist;
 mod graph_matrix;
