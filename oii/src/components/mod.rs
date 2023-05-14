@@ -120,6 +120,7 @@ impl VerticeNodes {
             .id();
         e
     }
+
 }
 
 #[derive(Component, Clone, Reflect, Default, Serialize, Deserialize)]
