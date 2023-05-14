@@ -5,7 +5,10 @@ use bevy::{
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use controlls::{OrbitController, OrbitControllerPlugin};
+mod components;
 mod controlls;
+mod field;
+mod utils;
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
