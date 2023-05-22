@@ -1,0 +1,12 @@
+[package]
+edition = "2021"
+name = "eulerian_fluids"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = {version = "0.10.0"}
+bevy-inspector-egui = "0.18"
+ndarray = "0.15.6"
+num-traits = "0.2.15"
