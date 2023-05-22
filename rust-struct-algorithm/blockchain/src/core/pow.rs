@@ -2,6 +2,8 @@ use std::{thread, time::Duration};
 
 use bigint::U256;
 
+use crate::utils::serializer::{hash_str, hash_u8, serialize};
+
 use super::block::Block;
 // nonce 最大值
 const MAX_NONCE: u32 = 0x7FFFFFFF;
@@ -42,11 +44,22 @@ impl ProofOfWork {
             // 计算值
             let hd_ser = Self::prepare_data(&mut block, nonce);
             let mut hash_u: [u8; 32] = [0; 32];
+            hash_u8(&hd_ser, &mut hash_u);
+
+            let hash_int = U256::from(hash_u);
+            if hash_int <= self.target {
+                block.hash = hash_str(&hd_ser);
+                println!("Produce a new Block !\n");
+                return;
+            }
 
             nonce += 1;
         }
     }
 
     // 准备区块头数据
-    fn prepare_data(block: &mut Block, nonce: u32) {}
+    fn prepare_data(block: &mut Block, nonce: u32) -> Vec<u8> {
+        block.header.nonce = nonce;
+        serialize(&(block.header))
+    }
 }

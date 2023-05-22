@@ -9,6 +9,8 @@ pub struct BlockHeader {
     pub time: i64,
     pub pre_hash: String,
     pub txs_hash: String,
+    pub nonce: u32,
+    pub bits: u32,
 }
 
 #[derive(Debug)]
@@ -16,6 +18,7 @@ pub struct Block {
     pub header: BlockHeader,
     pub tranxs: String,
     pub hash: String,
+ 
 }
 
 impl Block {
@@ -34,6 +37,8 @@ impl Block {
                 time: time,
                 pre_hash: pre_hash,
                 txs_hash: txs_hash,
+                nonce:0,
+                bits:0
             },
             tranxs: txs,
             hash: "".to_string(),
