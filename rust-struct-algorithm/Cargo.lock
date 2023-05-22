@@ -43,6 +43,8 @@ dependencies = [
  "bigint",
  "bincode",
  "chrono",
+ "db-key",
+ "leveldb",
  "rust-crypto",
  "serde",
 ]
@@ -84,6 +86,15 @@ dependencies = [
  "time",
  "wasm-bindgen",
  "winapi",
+]
+
+[[package]]
+name = "cmake"
+version = "0.1.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31c789563b815f77f4250caee12365734369f942439b7defd71e18a48197130"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -153,6 +164,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "db-key"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b72465f46d518f6015d9cf07f7f3013a95dd6b9c2747c3d65ae0cce43929d14f"
+
+[[package]]
+name = "ffi-opaque"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec54ac60a7f2ee9a97cad9946f9bf629a3bc6a7ae59e68983dc9318f5a54b81a"
+
+[[package]]
 name = "fuchsia-cprng"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -163,6 +186,15 @@ name = "gcc"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
+
+[[package]]
+name = "hermit-abi"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee512640fe35acbfb4bb779db6f0d80704c2cacfa2e39b601ef3e3f47d1ae4c7"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "iana-time-zone"
@@ -195,6 +227,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68c16e1bfd491478ab155fd8b4896b86f9ede344949b641e61501e07c2b8b4d5"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "leveldb"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32651baaaa5596b3a6e0bee625e73fd0334c167db0ea5ac68750ef9a629a2d6a"
+dependencies = [
+ "db-key",
+ "leveldb-sys",
+ "libc",
+]
+
+[[package]]
+name = "leveldb-sys"
+version = "2.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dd94a4d0242a437e5e41a27c782b69a624469ca1c4d1e5cb3c337f74a8031d4"
+dependencies = [
+ "cmake",
+ "ffi-opaque",
+ "libc",
+ "num_cpus",
 ]
 
 [[package]]
@@ -238,6 +293,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "num_cpus"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fac9e2da13b5eb447a6ce3d392f23a29d8694bff781bf03a16cd9ac8697593b"
+dependencies = [
+ "hermit-abi",
+ "libc",
 ]
 
 [[package]]

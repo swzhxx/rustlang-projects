@@ -13,7 +13,7 @@ pub struct BlockHeader {
     pub bits: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Serialize)]
 pub struct Block {
     pub header: BlockHeader,
     pub tranxs: String,
@@ -22,7 +22,7 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(txs: String, pre_hash: String) -> Self {
+    pub fn new(txs: String, pre_hash: String , bits:u32) -> Self {
         // 用延迟3秒来模拟挖矿
         println!("Starting mining ...");
         thread::sleep(Duration::from_secs(3));
@@ -38,7 +38,7 @@ impl Block {
                 pre_hash: pre_hash,
                 txs_hash: txs_hash,
                 nonce:0,
-                bits:0
+                bits
             },
             tranxs: txs,
             hash: "".to_string(),

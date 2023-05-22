@@ -9,5 +9,7 @@ edition = "2021"
 bincode = "1.3.3"
 chrono = "0.4.24"
 rust-crypto = "0.2.36"
-serde = {version = "1.0.163", features = ["derive"]}
+serde = { version = "1.0.163", features = ["derive"] }
 bigint = "4.4.3"
+db-key = "0.0.5"
+leveldb = { version = "0.8.6" }
