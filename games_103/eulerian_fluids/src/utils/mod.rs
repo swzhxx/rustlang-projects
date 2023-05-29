@@ -1,39 +1,49 @@
-use std::ops::{Add, Div, Mul};
-
 use bevy::render::view::ViewSet;
 use ndarray::{s, Array1, Array3};
 use num_traits::Num;
 
-pub fn bilerp(matrix: &Array3<f32>, x: f32, y: f32) -> Array1<f32> {
-    let shape = matrix.shape();
-    let i = x as usize;
-    let j = y as usize;
+pub fn sample<'a>(qf: &'a Array3<f32>, u: usize, v: usize) -> Vec<f32> {
+    let shape = qf.shape();
+    let u = shape[0].max(0).min(u - 1);
+    let v = shape[1].max(0).min(v - 1);
+    let binding = qf.slice(s![shape[0], shape[1], ..]);
+    let res = binding.as_slice().unwrap();
+    res.to_owned()
+}
 
-    let value_i_j = matrix.slice(s![i, j, ..]);
-    let value_i_1_j = if i + 1 >= shape[0] {
-        value_i_j
-    } else {
-        matrix.slice(s![i + 1, j, ..])
-    };
-    let value_i_j_1 = if j + 1 >= shape[1] {
-        value_i_j
-    } else {
-        matrix.slice(s![i, j + 1, ..])
-    };
-    let value_i_1_j_1 = {
-        let mut i_1 = if i + 1 > shape[0] { i } else { i + 1 };
-        let mut j_1 = if j + 1 > shape[1] { j } else { j + 1 };
-        matrix.slice(s![i_1, j_1, ..])
-    };
+pub fn lerp(vl: &[f32], vr: &[f32], frac: f32) -> Vec<f32> {
+    let vl = Array1::from(vl.to_owned());
+    let vr = Array1::from(vl.to_owned());
+    let result = &vl + frac * (&vr - &vl);
+    result.to_vec()
+}
 
-    ((i + 1) as f32 - x) * ((j + 1) as f32 - y) * &value_i_j.to_owned()
-        + (x - (i) as f32) * (y - j as f32) * &value_i_1_j.to_owned()
-        + ((i + 1) as f32 - x) * (y - j as f32) * &value_i_j_1.to_owned()
-        + (x - i as f32) * (y - j as f32) * &value_i_1_j_1.to_owned()
+pub fn bilerp(matrix: &Array3<f32>, u: f32, v: f32) -> Vec<f32> {
+    let s = u - 0.5;
+    let t = v - 0.5;
+    let iu = s as usize;
+    let iv = t as usize;
+    let fu = s - iu as f32;
+    let fv = t - iv as f32;
+    let a = sample(matrix, iu, iv);
+    let b = sample(matrix, iu + 1, iv);
+    let c = sample(matrix, iu, iv + 1);
+    let d = sample(matrix, iu + 1, iv + 1);
+    lerp(&lerp(&a, &b, fu), &lerp(&c, &d, fu), fv)
 }
 
 pub fn advect(vf: &Array3<f32>, qf: &Array3<f32>, new_qf: &mut Array3<f32>) {
-  // vf.
+    let shape = vf.shape();
+    for i in 0..shape[0] {
+        for j in 0..shape[1] {
+            let _i = i as f32 + 0.5;
+            let _j = j as f32 + 0.5;
+            let res = bilerp(qf, _i, _j);
+            new_qf[(i, j, 0)] = res[0];
+            new_qf[(i, j, 1)] = res[1];
+            new_qf[(i, j, 2)] = res[2];
+        }
+    }
 }
 
 #[cfg(test)]

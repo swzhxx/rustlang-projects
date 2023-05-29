@@ -9,6 +9,7 @@ mod components;
 mod controlls;
 mod field;
 mod utils;
+mod system;
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
