@@ -1,6 +1,6 @@
 [workspace]
 members = ["HW1", "HW2"]
-exclude= ["physis_rapier"]
+exclude= ["physis_rapier" , "eulerian_fluids"]
 resolver = "2"
 
 
