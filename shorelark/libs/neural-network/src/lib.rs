@@ -1,5 +1,6 @@
 use rand::{Rng, RngCore};
 
+#[derive(Debug)]
 pub struct Network {
     layers: Vec<Layer>,
 }
@@ -20,8 +21,12 @@ impl Network {
             .collect();
         Self { layers: layers }
     }
-}
 
+    pub fn weights(&self) -> Vec<f32> {
+        todo!()
+    }
+}
+#[derive(Debug)]
 struct Layer {
     neurons: Vec<Neuron>,
 }
@@ -41,7 +46,7 @@ impl Layer {
         Self { neurons }
     }
 }
-
+#[derive(Debug)]
 struct Neuron {
     bias: f32,
     weights: Vec<f32>,
@@ -110,6 +115,16 @@ mod tests {
         #[test]
         fn test() {
             /* ... */
+        }
+    }
+
+    mod weights {
+        use super::*;
+        fn test() {
+            let network = Network::new(vec![
+                Layer::new(vec![Neuron::new(0.1, vec![0.2, 0.3, 0.4])]),
+                Layer::new(vec![Neuron::new(0.5, vec![0.6, 0.7, 0.8])]),
+            ]);
         }
     }
 }

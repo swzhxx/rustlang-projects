@@ -1,0 +1,12 @@
+[package]
+edition = "2021"
+name = "lib-genetic-algorithm"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rand = "0.8"
+[dev-dependencies]
+approx = "0.4"
+rand_chacha = "0.3"
