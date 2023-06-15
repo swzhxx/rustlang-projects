@@ -1,5 +1,6 @@
 mod animal;
 mod animal_individual;
+mod brain;
 mod eye;
 mod food;
 mod world;
@@ -9,7 +10,7 @@ use na::{Point2, Rotation2};
 use nalgebra as na;
 use rand::{Rng, RngCore};
 
-pub use {animal::*, animal_individual::*, eye::*, food::*, world::*};
+pub use {animal::*, animal_individual::*, brain::*, eye::*, food::*, world::*};
 
 // FRAC_PI_2 = PI / 2.0; a convenient shortcut
 use std::f32::consts::FRAC_PI_2;
@@ -81,16 +82,27 @@ impl Simulation {
         &self.world
     }
 
-    pub fn step(&mut self, rng: &mut dyn RngCore) {
+    pub fn step(&mut self, rng: &mut dyn RngCore) -> Option<ga::Statistics> {
         self.process_collisions(rng);
         self.process_brain();
         self.process_movements();
         self.age += 1;
 
         if self.age > GENERATION_LENGTH {
-            self.evolve(rng);
+            Some(self.evolve(rng))
+        } else {
+            None
         }
     }
+
+    pub fn train(&mut self, rng: &mut dyn RngCore) -> ga::Statistics {
+        loop {
+            if let Some(summary) = self.step(rng) {
+                return summary;
+            }
+        }
+    }
+
     pub fn process_movements(&mut self) {
         for animal in &mut self.world.animals {
             animal.position += animal.rotation * na::Vector2::new(0.0, animal.speed);
@@ -115,7 +127,7 @@ impl Simulation {
                 animal
                     .eye
                     .process_vision(animal.position, animal.rotation, &self.world.foods);
-            let response = animal.brain.propagate(vision);
+            let response = animal.brain.nn.propagate(vision);
             // ---
             // | Limits number to given range.
             // -------------------- v---v
@@ -140,7 +152,7 @@ impl Simulation {
             // inside `mod different_rotations { ... }`.)
         }
     }
-    fn evolve(&mut self, rng: &mut dyn RngCore) {
+    fn evolve(&mut self, rng: &mut dyn RngCore) -> ga::Statistics {
         self.age = 0;
 
         // Step 1: Prepare birdies to be sent into the genetic algorithm
@@ -152,7 +164,7 @@ impl Simulation {
             .collect();
 
         // Step 2: Evolve birdies
-        let evolved_population = self.ga.evolve(rng, &current_population);
+        let (evolved_population, stats) = self.ga.evolve(rng, &current_population);
 
         // Step 3: Bring birdies back from the genetic algorithm
         self.world.animals = evolved_population
@@ -167,6 +179,7 @@ impl Simulation {
         for food in &mut self.world.foods {
             food.position = rng.gen();
         }
+        stats
     }
 }
 
