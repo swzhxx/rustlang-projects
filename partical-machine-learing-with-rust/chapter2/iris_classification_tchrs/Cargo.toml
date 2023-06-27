@@ -1,11 +1,14 @@
 [package]
 edition = "2021"
-name = "ml-utils"
+name = "iris_classification_tchrs"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 csv = "1.0.5"
+ml-utils = {path = "../ml-utils"}
+rand = "0.6"
 serde = "1.0.89"
 serde_derive = "1.0.89"
+tch = "0.0.6"

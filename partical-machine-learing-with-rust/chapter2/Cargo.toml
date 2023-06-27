@@ -1,2 +1,2 @@
 [workspace]
-members = ["rustymachine-regression", "ml-utils"]
+members = ["rustymachine-regression", "ml-utils", "rustlearn_classification_tasks", "iris_classification_tchrs"]
