@@ -1,0 +1,15 @@
+[package]
+edition = "2021"
+name = "rusty_machine_unsupervised"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+csv = "1.1.1"
+
+ml-utils = {path = "../../chapter2/ml-utils"}
+rand = "0.7.0"
+rusty-machine = {git = "https://github.com/AtheMathmo/rusty-machine.git", rev = "f43da8d"}
+serde = "1"
+serde_derive = "1"

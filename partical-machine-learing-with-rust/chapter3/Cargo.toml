@@ -1,0 +1,2 @@
+[workspace]
+members = ["rusty_machine_unsupervised", "rsrl_custom"]
