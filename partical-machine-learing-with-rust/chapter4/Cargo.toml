@@ -1,0 +1,2 @@
+[workspace]
+members = ["data_formats", "working_with_data", "data_base" , "data_transformations_datafusion"]
