@@ -15,3 +15,14 @@ pub fn r_squared_score(y_test: &[f64], y_preds: &[f64]) -> f64 {
     let r2_calculated: f64 = 1.0 - (model_variance / variance);
     r2_calculated
 }
+
+pub fn accuracy(y_test: &[u32], y_preds: &[u32]) -> f32 {
+    let mut correct_hits = 0;
+    for (predicted, actual) in y_preds.iter().zip(y_test.iter()) {
+        if predicted == actual {
+            correct_hits += 1;
+        }
+    }
+    let acc: f32 = correct_hits as f32 / y_test.len() as f32;
+    acc
+}
