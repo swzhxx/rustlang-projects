@@ -1,0 +1,10 @@
+[package]
+edition = "2021"
+name = "matrix_transformations"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ndarray = "0.12.1"
+ndarray-rand = "0.9.0"
