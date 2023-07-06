@@ -85,7 +85,7 @@ pub fn render_obj(
                         })
                         .id();
                     picked_files.current_entity = Some(entity);
-                    VerticeNodes::create_with_entity(
+                    let _ = VerticeNodes::create_with_entity(
                         &mut commands,
                         entity,
                         &handle,

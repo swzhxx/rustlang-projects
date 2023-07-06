@@ -17,8 +17,7 @@ pub fn ui_system<'a>(
     mut picked_files_query: Query<&mut PickedFiles>,
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
-    nodes_query: Query<(Entity, &VerticeNodes)>,
-    child_query: Query<(Entity, &Children)>,
+
     checknode_query: Query<(Entity, &'a CheckNode)>,
 ) {
     egui::Window::new("file").show(contexts.ctx_mut(), |ui| {
@@ -63,26 +62,34 @@ pub fn ui_system<'a>(
         ui.separator();
         if ui.button("Save").clicked() {
             if picked_files.picked_folder_path.is_some() && picked_files.current_index.is_some() {
-                let (node_entity, _) = nodes_query
-                    .get(picked_files.current_entity.as_ref().unwrap().clone())
-                    .unwrap();
-                let (_, children) = child_query.get(node_entity).unwrap();
-                let mut v = vec![];
-                for child in children.iter() {
-                    if let Ok((_, checkNode)) = checknode_query.get(child.clone()) {
-                        v.push(checkNode)
-                    }
-                }
+                let v = checknode_query
+                    .iter()
+                    .map(|(_entity, node)| node)
+                    .collect::<Vec<&CheckNode>>();
 
+                // let (node_entity, _) = nodes_query
+                //     .get(picked_files.current_entity.as_ref().unwrap().clone())
+                //     .unwrap();
+                // let (_, children) = child_query.get(node_entity).unwrap();
+                // let mut v = vec![];
+                // for child in children.iter() {
+                //     if let Ok((_, checkNode)) = checknode_query.get(child.clone()) {
+                //         v.push(checkNode)
+                //     }
+                // }
+                info!("node length {:?}", v.len());
                 let path = picked_files.files[picked_files.current_index.unwrap()]
                     .path
                     .to_string();
                 let json = serde_json::to_string(&v).unwrap();
-                IoTaskPool::get().spawn(async move {
-                    File::create(format!("{}.json", &path))
-                        .and_then(|mut file| file.write(json.as_bytes()))
-                        .expect("Error Save Failed");
-                });
+                // let _task = IoTaskPool::get().spawn(async move {
+                let path = format!("{}.json", &path);
+                info!("write path {:?}", path);
+                File::create(path)
+                    .and_then(|mut file| file.write(json.as_bytes()))
+                    .expect("Error Save Failed");
+                // });
+                // commands.spawn(_task);
             }
         }
         ui.separator();

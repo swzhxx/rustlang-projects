@@ -40,14 +40,14 @@ impl VerticeNodes {
         commands: &mut Commands,
         root_entity: Entity,
         handle_mesh: &Handle<Mesh>,
-        query: &Query<(Entity, &Handle<Mesh>)>,
+        _query: &Query<(Entity, &Handle<Mesh>)>,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<StandardMaterial>>,
     ) -> anyhow::Result<()> {
         let mut vertice_nodes = VerticeNodes::new();
         let handle = meshes.add(
             Mesh::try_from(shape::Icosphere {
-                radius: 0.03,
+                radius: 0.015,
                 ..default()
             })
             .unwrap(),
@@ -120,7 +120,6 @@ impl VerticeNodes {
             .id();
         e
     }
-
 }
 
 #[derive(Component, Clone, Reflect, Default, Serialize, Deserialize)]
