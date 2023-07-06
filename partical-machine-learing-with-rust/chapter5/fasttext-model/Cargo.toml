@@ -1,0 +1,24 @@
+[package]
+edition = "2021"
+name = "fasttext-model"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# data reading and organisation
+csv = "1.0.7"
+rand = "0.6.5"
+serde = "1"
+serde_derive = "1"
+
+# machine learning
+fasttext = "0.4.1"
+
+# text normalisation
+rust-stemmers = "1.1.0"
+stopwords = "0.1.0"
+vtext = "0.1.0-alpha.1"
+
+# others
+itertools = "0.8.0"
