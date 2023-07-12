@@ -40,7 +40,7 @@ pub fn tower_shooting(
                             ..default()
                         })
                         .insert(Lifetime {
-                            timer: Timer::from_seconds(1000.5, false),
+                            timer: Timer::from_seconds(1000.5, TimerMode::Once),
                         })
                         .insert(Bullet {
                             direction,
@@ -97,21 +97,21 @@ impl TowerType {
             TowerType::Tomato => (
                 assets.tomato_tower_scene.clone(),
                 Tower {
-                    shooting_timer: Timer::from_seconds(0.5, true),
+                    shooting_timer: Timer::from_seconds(0.5, TimerMode::Repeating),
                     bullet_offset: Vec3::new(0.0, 0.6, 0.0),
                 },
             ),
             TowerType::Potato => (
                 assets.potato_tower_scene.clone(),
                 Tower {
-                    shooting_timer: Timer::from_seconds(0.7, true),
+                    shooting_timer: Timer::from_seconds(0.7, TimerMode::Repeating),
                     bullet_offset: Vec3::new(0.0, 0.6, 0.0),
                 },
             ),
             TowerType::Cabbage => (
                 assets.cabbage_tower_scene.clone(),
                 Tower {
-                    shooting_timer: Timer::from_seconds(0.8, true),
+                    shooting_timer: Timer::from_seconds(0.8, TimerMode::Repeating),
                     bullet_offset: Vec3::new(0.0, 0.6, 0.0),
                 },
             ),
@@ -156,20 +156,19 @@ fn create_ui(commands: &mut Commands, asset_server: &Res<AssetServer>) {
         asset_server.load("cabbage_tower.png"),
     ];
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.), Val::Percent(100.)),
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            color: Color::NONE.into(),
             ..default()
         })
         .insert(TowerUIRoot)
         .with_children(|commands| {
             for i in 0..3 {
                 commands
-                    .spawn_bundle(ButtonBundle {
+                    .spawn(ButtonBundle {
                         style: Style {
                             size: Size::new(Val::Percent(15.0 * 9. / 16.), Val::Percent(15.0)),
                             align_self: AlignSelf::FlexStart,
@@ -211,14 +210,14 @@ fn spawn_tower(
 ) -> Entity {
     let (tower_scene, tower) = tower_type.get_tower(assets);
     commands
-        .spawn_bundle(SpatialBundle::from_transform(Transform::from_translation(
+        .spawn(SpatialBundle::from_transform(Transform::from_translation(
             position,
         )))
         .insert(Name::new(format!("{:?}_Tower", tower_type)))
         .insert(tower_type)
         .insert(tower)
         .with_children(|commands| {
-            commands.spawn_bundle(SceneBundle {
+            commands.spawn(SceneBundle {
                 scene: tower_scene,
                 transform: Transform::from_xyz(0.0, -0.8, 0.0),
                 ..Default::default()

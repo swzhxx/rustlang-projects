@@ -9,20 +9,23 @@ pub use tower::*;
 use bevy::{pbr::NotShadowCaster, prelude::*};
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_picking::*;
-
+pub const HEIGHT: f32 = 720.0;
+pub const WIDTH: f32 = 1280.0;
 fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.2, 0.2, 0.2)))
-        .insert_resource(WindowDescriptor {
-            width: 1280.,
-            height: 720.,
-            title: "Bevy tower defense".to_string(),
-            resizable: false,
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                width: WIDTH,
+                height: HEIGHT,
+                title: "Bevy Tower Defense".to_string(),
+                resizable: false,
+                ..default()
+            },
             ..default()
-        })
+        }))
         .add_startup_system(spawn_basic_scene)
         .add_startup_system_to_stage(StartupStage::PreStartup, asset_loading)
-        .add_plugins(DefaultPlugins)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(TowerPlugin)
         .add_plugin(TargetPlguin)
@@ -39,13 +42,13 @@ fn spawn_basic_scene(
     game_assets: ResMut<GameAssets>,
 ) {
     commands
-        .spawn_bundle(Camera3dBundle {
+        .spawn(Camera3dBundle {
             transform: Transform::from_xyz(-2., 2.5, 5.).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         })
-        .insert_bundle(PickingCameraBundle::default());
+        .insert(PickingCameraBundle::default());
 
-    commands.spawn_bundle(PbrBundle {
+    commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..default()
@@ -57,7 +60,7 @@ fn spawn_basic_scene(
     for i in 0..10 {
         for j in 0..2 {
             commands
-                .spawn_bundle(SpatialBundle::from_transform(Transform::from_xyz(
+                .spawn(SpatialBundle::from_transform(Transform::from_xyz(
                     2.0 * i as f32 + j as f32,
                     0.8,
                     5.0 * j as f32,
@@ -72,9 +75,9 @@ fn spawn_basic_scene(
                 })
                 .insert(default_collider_color.clone())
                 .insert(NotShadowCaster)
-                .insert_bundle(PickableBundle::default())
+                .insert(PickableBundle::default())
                 .with_children(|commands| {
-                    commands.spawn_bundle(SceneBundle {
+                    commands.spawn(SceneBundle {
                         scene: game_assets.tower_base_scene.clone(),
                         transform: Transform::from_xyz(0.0, -0.8, 0.0),
                         ..Default::default()
@@ -85,7 +88,7 @@ fn spawn_basic_scene(
 
     for i in 1..25 {
         commands
-            .spawn_bundle(SceneBundle {
+            .spawn(SceneBundle {
                 scene: game_assets.target_scene.clone(),
                 transform: Transform::from_xyz(-2.0 * i as f32, 0.4, 2.5),
                 ..Default::default()
@@ -96,7 +99,7 @@ fn spawn_basic_scene(
     }
 
     commands
-        .spawn_bundle(PointLightBundle {
+        .spawn(PointLightBundle {
             transform: Transform::from_xyz(4., 8., 4.),
             point_light: PointLight {
                 intensity: 1500.,
@@ -121,6 +124,7 @@ fn asset_loading(mut commands: Commands, assets: Res<AssetServer>) {
     })
 }
 
+#[derive(Resource)]
 pub struct GameAssets {
     tower_base_scene: Handle<Scene>,
     tomato_tower_scene: Handle<Scene>,
