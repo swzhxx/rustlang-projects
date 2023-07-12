@@ -67,6 +67,8 @@ pub fn render_obj(
                         acc
                     });
                     let mesh = create_mesh(&indices, &vertices);
+                    info!("mesh count_vertices {:?}", mesh.count_vertices());
+
                     let handle = meshes.add(mesh);
 
                     if picked_files.current_entity.is_some() {
