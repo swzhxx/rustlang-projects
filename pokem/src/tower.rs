@@ -34,7 +34,7 @@ pub fn tower_shooting(
                 let (model, bullet) = tower_type.get_bullet(direction, &bullet_assets);
                 commands.entity(tower_ent).with_children(|commands| {
                     commands
-                        .spawn_bundle(SceneBundle {
+                        .spawn(SceneBundle {
                             scene: model,
                             transform: Transform::from_translation(tower.bullet_offset),
                             ..default()

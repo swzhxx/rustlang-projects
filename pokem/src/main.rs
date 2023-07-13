@@ -1,4 +1,5 @@
 mod bullet;
+mod main_menu;
 mod target;
 mod tower;
 
@@ -24,7 +25,8 @@ fn main() {
             },
             ..default()
         }))
-        .add_startup_system(spawn_basic_scene)
+        .add_state(GameState::MainMenu)
+        .add_system_set(SystemSet::on_enter(GameState::GamePlay).with_system(spawn_basic_scene))
         .add_startup_system_to_stage(StartupStage::PreStartup, asset_loading)
         .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(TowerPlugin)
@@ -134,6 +136,12 @@ pub struct GameAssets {
     potato_scene: Handle<Scene>,
     cabbage_tower_scene: Handle<Scene>,
     cabbage_scene: Handle<Scene>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum GameState {
+    MainMenu,
+    GamePlay,
 }
 
 fn camera_controls(
