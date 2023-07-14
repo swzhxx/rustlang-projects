@@ -1,12 +1,14 @@
 use bevy::{pbr::wireframe::WireframePlugin, prelude::*, winit::WinitSettings};
 mod components;
 mod controlls;
+mod resources;
 mod system;
 mod ui;
 mod utils;
 use bevy_mod_picking::{DefaultPickingPlugins, PickingCameraBundle, PickingPluginsState};
 use components::*;
 use controlls::{OrbitController, OrbitControllerPlugin};
+use resources::CheckSeqence;
 
 fn main() {
     let mut app = App::new();
@@ -17,6 +19,7 @@ fn main() {
         }),
         ..default()
     }))
+    .insert_resource(CheckSeqence::default())
     .add_plugins(DefaultPickingPlugins)
     .add_plugin(bevy_egui::EguiPlugin)
     .add_plugin(OrbitControllerPlugin)

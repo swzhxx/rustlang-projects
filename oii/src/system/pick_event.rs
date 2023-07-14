@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use bevy_mod_picking::PickingEvent;
 
-use crate::components::CheckNode;
+use crate::{components::CheckNode, resources::CheckSeqence};
 
 pub fn pick_events(
     mut events: EventReader<PickingEvent>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut check_sequence: ResMut<CheckSeqence>,
     mut query: Query<(
         Entity,
         &mut CheckNode,
@@ -49,9 +50,11 @@ pub fn pick_events(
                     query.get_mut(e.clone())
                 {
                     if check_node.checked == true {
-                        check_node.checked = false
+                        check_node.checked = false;
+                        check_sequence.as_mut().0.retain(|x| *x != check_node.index);
                     } else {
-                        check_node.checked = true
+                        check_node.checked = true;
+                        check_sequence.as_mut().0.push(check_node.index)
                     }
                     if let Some(material) = materials.get_mut(&material_handler) {
                         material.base_color = if check_node.checked == false {

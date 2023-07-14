@@ -10,14 +10,17 @@ use std::{
     io::Write,
 };
 
-use crate::components::{CheckNode, FileDescriptor, ModifyPickedFile, PickedFiles, VerticeNodes};
+use crate::{
+    components::{CheckNode, FileDescriptor, ModifyPickedFile, PickedFiles, VerticeNodes},
+    resources::CheckSeqence,
+};
 
 pub fn ui_system<'a>(
     mut contexts: EguiContexts,
     mut picked_files_query: Query<&mut PickedFiles>,
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
-
+    check_seqence: Res<CheckSeqence>,
     checknode_query: Query<(Entity, &'a CheckNode)>,
 ) {
     egui::Window::new("file").show(contexts.ctx_mut(), |ui| {
@@ -81,7 +84,7 @@ pub fn ui_system<'a>(
                 let path = picked_files.files[picked_files.current_index.unwrap()]
                     .path
                     .to_string();
-                let json = serde_json::to_string(&v).unwrap();
+                let json = serde_json::to_string(check_seqence.as_ref()).unwrap();
                 // let _task = IoTaskPool::get().spawn(async move {
                 let path = format!("{}.json", &path);
                 info!("write path {:?}", path);
