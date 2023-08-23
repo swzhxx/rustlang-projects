@@ -1,8 +1,11 @@
 use bevy::{
-    prelude::{Entity, QueryState, Resource, With, World},
+    prelude::{AssetServer, Entity, FromWorld, QueryState, Resource, With, World},
     render::{
         render_graph,
-        render_resource::{BindGroupLayout, CachedComputePipelineId, Pipeline, PipelineCache},
+        render_resource::{
+            BindGroup, BindGroupLayout, CachedComputePipelineId, Pipeline, PipelineCache,
+        },
+        renderer::RenderDevice,
     },
     utils::HashMap,
 };
@@ -28,6 +31,21 @@ enum ParticleUpdateState {
     Loading,
     Init,
     Update,
+}
+
+pub fn update_bind_group() -> BindGroupLayoutDescriptor {
+    todo!()
+}
+
+impl FromWorld for ParticleUpdatePipeline {
+    fn from_world(world: &mut World) -> Self {
+        let bind_group_layout = world
+            .resource::<RenderDevice>()
+            .create_bind_group_layout(&update_bind_group());
+        let shader = world.resource::<AssetServer>().load("particle_update.wgsl");
+        let mut pipeline_cache = world.resource_mut::<PipelineCache>();
+        todo!()
+    }
 }
 
 impl render_graph::Node for UpdateParticlesNode {

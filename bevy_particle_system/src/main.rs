@@ -6,6 +6,7 @@ use wgpu::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 mod particle_system;
 mod particle_render;
 mod particle_update;
+mod compute_utils;
 use particle_system::ParticlePlguin;
 
 #[derive(Component, Default, Clone)]
@@ -13,6 +14,9 @@ pub struct ParticleSystem {
     pub rendered_texture: Handle<Image>,
 }
 
+pub const PARTICLE_COUNT: u32 = 1000;
+// XXX when changing this also change it in the shader... TODO figure out how to avoid that...
+pub const WORKGROUP_SIZE: u32 = 16;
 pub const HEIGHT: f32 = 480.0;
 pub const WIDTH: f32 = 640.0;
 fn main() {
