@@ -96,21 +96,25 @@ pub fn ui_system<'a>(
             }
         }
         ui.separator();
+
         ui.collapsing("Click to see what is hidden!", |ui| {
-            // ui.label("Not much, as it turns out");
-            for (index, file) in picked_files.files.iter().enumerate() {
-                let mut label = file.file_name.to_string();
-                if Some(index) == picked_files.current_index {
-                    label = "> ".to_string() + &file.file_name.to_string();
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.set_max_height(500.);
+                // ui.label("Not much, as it turns out");
+                for (index, file) in picked_files.files.iter().enumerate() {
+                    let mut label = file.file_name.to_string();
+                    if Some(index) == picked_files.current_index {
+                        label = "> ".to_string() + &file.file_name.to_string();
+                    }
+                    if ui.button(&label).clicked() {
+                        info!("click index {:?} file name {:?}", index, file.file_name);
+                        commands.spawn(ModifyPickedFile {
+                            old_index: picked_files.current_index.clone(),
+                            current_index: Some(index),
+                        });
+                    }
                 }
-                if ui.button(&label).clicked() {
-                    info!("click index {:?} file name {:?}", index, file.file_name);
-                    commands.spawn(ModifyPickedFile {
-                        old_index: picked_files.current_index.clone(),
-                        current_index: Some(index),
-                    });
-                }
-            }
+            });
         });
     });
 }
