@@ -13,15 +13,31 @@ use std::{
 use crate::{
     components::{CheckNode, FileDescriptor, ModifyPickedFile, PickedFiles, VerticeNodes},
     resources::CheckSeqence,
+    system::effect_check_node,
 };
+
+#[derive(Resource)]
+pub struct UIState {
+    vertex_index: String,
+}
+
+impl Default for UIState {
+    fn default() -> Self {
+        UIState {
+            vertex_index: String::from(""),
+        }
+    }
+}
 
 pub fn ui_system<'a>(
     mut contexts: EguiContexts,
     mut picked_files_query: Query<&mut PickedFiles>,
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
-    check_seqence: Res<CheckSeqence>,
-    checknode_query: Query<(Entity, &'a CheckNode)>,
+    mut check_seqence: ResMut<CheckSeqence>,
+    mut checknode_query: Query<(Entity, &'a mut CheckNode, &Handle<StandardMaterial>)>,
+    mut ui_state: ResMut<UIState>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     egui::Window::new("file").show(contexts.ctx_mut(), |ui| {
         let mut picked_files = picked_files_query.single_mut();
@@ -63,11 +79,42 @@ pub fn ui_system<'a>(
             "display selectable vertices ball",
         );
         ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("selected vertex index: ");
+            ui.text_edit_singleline(&mut ui_state.vertex_index);
+            if ui.button("Do Label").clicked() {
+                match &ui_state.vertex_index.parse::<u32>() {
+                    Ok(vertex_index) => {
+                        let mut check_nodes = checknode_query
+                            .iter_mut()
+                            .map(|(_entity, mut node, handle_material)| (node, handle_material))
+                            .collect::<Vec<(Mut<CheckNode>, &Handle<StandardMaterial>)>>();
+
+                        if (check_nodes.len() > *vertex_index as usize) {
+                            info!("选中第{}节点", vertex_index);
+                            let (node, handler) = &mut check_nodes[*vertex_index as usize];
+                            effect_check_node(
+                                node.as_mut(),
+                                handler,
+                                &mut materials,
+                                &mut check_seqence,
+                            );
+                        }
+                        ui_state.vertex_index = String::from("");
+                    }
+                    Err(err) => {
+                        info!("选中节点错误");
+                        ui_state.vertex_index = String::from("");
+                    }
+                }
+            };
+        });
+        ui.separator();
         if ui.button("Save").clicked() {
             if picked_files.picked_folder_path.is_some() && picked_files.current_index.is_some() {
                 let v = checknode_query
                     .iter()
-                    .map(|(_entity, node)| node)
+                    .map(|(_entity, node, _)| node)
                     .collect::<Vec<&CheckNode>>();
 
                 // let (node_entity, _) = nodes_query

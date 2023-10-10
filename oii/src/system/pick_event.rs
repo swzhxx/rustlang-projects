@@ -49,24 +49,54 @@ pub fn pick_events(
                 if let Ok((entity, mut check_node, mut material_handler, _)) =
                     query.get_mut(e.clone())
                 {
-                    if check_node.checked == true {
-                        check_node.checked = false;
-                        check_sequence.as_mut().0.retain(|x| *x != check_node.index);
-                    } else {
-                        check_node.checked = true;
-                        check_sequence.as_mut().0.push(check_node.index)
-                    }
-                    if let Some(material) = materials.get_mut(&material_handler) {
-                        material.base_color = if check_node.checked == false {
-                            // info!("修改白色");
-                            Color::rgb(1., 1., 1.)
-                        } else {
-                            // info!("修改红色");
-                            Color::rgb(1., 0., 0.)
-                        }
-                    }
+                    // if check_node.checked == true {
+                    //     check_node.checked = false;
+                    //     check_sequence.as_mut().0.retain(|x| *x != check_node.index);
+                    // } else {
+                    //     check_node.checked = true;
+                    //     check_sequence.as_mut().0.push(check_node.index)
+                    // }
+                    // if let Some(material) = materials.get_mut(&material_handler) {
+                    //     material.base_color = if check_node.checked == false {
+                    //         // info!("修改白色");
+                    //         Color::rgb(1., 1., 1.)
+                    //     } else {
+                    //         // info!("修改红色");
+                    //         Color::rgb(1., 0., 0.)
+                    //     }
+                    // }
+                    effect_check_node(
+                        &mut check_node,
+                        &material_handler,
+                        &mut materials,
+                        check_sequence.as_mut(),
+                    );
                 }
             }
+        }
+    }
+}
+
+pub fn effect_check_node(
+    check_node: &mut CheckNode,
+    material_handler: &Handle<StandardMaterial>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    check_sequence: &mut CheckSeqence,
+) {
+    if check_node.checked == true {
+        check_node.checked = false;
+        check_sequence.0.retain(|x| *x != check_node.index);
+    } else {
+        check_node.checked = true;
+        check_sequence.0.push(check_node.index)
+    }
+    if let Some(material) = materials.get_mut(&material_handler) {
+        material.base_color = if check_node.checked == false {
+            // info!("修改白色");
+            Color::rgb(1., 1., 1.)
+        } else {
+            // info!("修改红色");
+            Color::rgb(1., 0., 0.)
         }
     }
 }
