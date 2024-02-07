@@ -146,7 +146,7 @@ pub fn ui_system<'a>(
 
         ui.collapsing("Click to see what is hidden!", |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.set_max_height(500.);
+                // ui.set_max_height(500.);
                 // ui.label("Not much, as it turns out");
                 for (index, file) in picked_files.files.iter().enumerate() {
                     let mut label = file.file_name.to_string();
